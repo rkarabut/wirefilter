@@ -659,7 +659,8 @@ mod tests {
             }
         );
 
-        // test that adjacent single digit int literals are parsed properly (without spaces)
+        // test that adjacent single digit int literals are parsed properly (without
+        // spaces)
         let expr = assert_ok!(
             FunctionCallExpr::lex_with(r#"echo (http.host,1,2);"#, &SCHEME),
             FunctionCallExpr {

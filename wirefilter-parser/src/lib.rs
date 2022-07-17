@@ -5,9 +5,11 @@ use cidr::{Ipv4Cidr, Ipv6Cidr};
 use pest::error::ErrorVariant;
 use pest_consume::{match_nodes, Error as ParseError, Parser as PestParser};
 use semantics::ValidateSemantics;
-use std::borrow::Cow;
-use std::net::{Ipv4Addr, Ipv6Addr};
-use std::ops::RangeInclusive;
+use std::{
+    borrow::Cow,
+    net::{Ipv4Addr, Ipv6Addr},
+    ops::RangeInclusive,
+};
 
 #[derive(PestParser)]
 #[grammar = "./grammar.pest"]

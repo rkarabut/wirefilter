@@ -257,8 +257,8 @@ impl<'s> IndexExpr<'s> {
         }
     }
 
-    /// Compiles an [`IndexExpr`] node into a [`CompiledExpr`] (boxed closure) using the
-    /// provided comparison function that returns a boolean.
+    /// Compiles an [`IndexExpr`] node into a [`CompiledExpr`] (boxed closure)
+    /// using the provided comparison function that returns a boolean.
     pub fn compile_with<F: 's, U: 's, C: Compiler<'s, U> + 's>(
         self,
         compiler: &mut C,

@@ -5,8 +5,10 @@ use crate::{
     scheme::{FieldIndex, IndexAccessError},
     strict_partial_ord::StrictPartialOrd,
 };
-use serde::de::{DeserializeSeed, Deserializer};
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{
+    de::{DeserializeSeed, Deserializer},
+    Deserialize, Serialize, Serializer,
+};
 use std::{
     borrow::Cow,
     cmp::Ordering,
@@ -90,8 +92,12 @@ pub enum SetValueError {
 }
 
 macro_rules! replace_underscore {
-    ($name:ident ($val_ty:ty)) => {Type::$name(_)};
-    ($name:ident) => {Type::$name};
+    ($name:ident ($val_ty:ty)) => {
+        Type::$name(_)
+    };
+    ($name:ident) => {
+        Type::$name
+    };
 }
 
 macro_rules! specialized_get_type {
@@ -121,9 +127,11 @@ macro_rules! specialized_try_from {
 /// This macro generates `Type`, `LhsValue`, `RhsValue`, `RhsValues`.
 ///
 /// Before the parenthesis is the variant for the `Type` enum (`Type::Ip`).
-/// First argument is the corresponding `LhsValue` variant (`LhsValue::Ip(IpAddr)`).
-/// Second argument is the corresponding `RhsValue` variant (`RhsValue::Ip(IpAddr)`).
-/// Third argument is the corresponding `RhsValues` variant (`RhsValues::Ip(Vec<IpRange>)`) for the curly bracket syntax. eg `num in {1, 5}`
+/// First argument is the corresponding `LhsValue` variant
+/// (`LhsValue::Ip(IpAddr)`). Second argument is the corresponding `RhsValue`
+/// variant (`RhsValue::Ip(IpAddr)`). Third argument is the corresponding
+/// `RhsValues` variant (`RhsValues::Ip(Vec<IpRange>)`) for the curly bracket
+/// syntax. eg `num in {1, 5}`
 ///
 /// ```
 /// declare_types! {
