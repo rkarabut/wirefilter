@@ -303,6 +303,7 @@ impl<'s> ComparisonExpr<'s> {
             match (&lhs_type, op) {
                 (Type::Ip, ComparisonOp::In)
                 | (Type::Bytes, ComparisonOp::In)
+                | (Type::HexString, ComparisonOp::In)
                 | (Type::Int, ComparisonOp::In) => {
                     if expect(input, "$").is_ok() {
                         let (name, input) = ListName::lex(input)?;
@@ -318,6 +319,7 @@ impl<'s> ComparisonExpr<'s> {
                 }
                 (Type::Ip, ComparisonOp::Ordering(op))
                 | (Type::Bytes, ComparisonOp::Ordering(op))
+                | (Type::HexString, ComparisonOp::Ordering(op))
                 | (Type::Int, ComparisonOp::Ordering(op)) => {
                     let (rhs, input) = RhsValue::lex_with(input, lhs_type)?;
                     (ComparisonOpExpr::Ordering { op, rhs }, input)

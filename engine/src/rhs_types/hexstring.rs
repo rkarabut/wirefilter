@@ -6,11 +6,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(transparent)]
+/// Bytes literal represented either by raw bytes or a hexadecimal string.
 pub struct HexString {
     data: Vec<u8>,
 }
 
 impl HexString {
+    /// Creates a new hexstring from an array of bytes.
     pub fn new(data: Vec<u8>) -> Self {
         Self { data }
     }
