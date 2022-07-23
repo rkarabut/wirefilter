@@ -2,7 +2,7 @@ use crate::{
     lex::{expect, from_hex, skip_space, Lex, LexResult, LexWith},
     lhs_types::{Array, ArrayIterator, Map, MapIter, MapValuesIntoIter},
     rhs_types::{
-        Bytes, EvmAddr, IntRange, IpRange, UninhabitedArray, UninhabitedBool, UninhabitedMap,
+        Bytes, HexString, IntRange, IpRange, UninhabitedArray, UninhabitedBool, UninhabitedMap,
     },
     scheme::{FieldIndex, IndexAccessError},
     strict_partial_ord::StrictPartialOrd,
@@ -440,7 +440,7 @@ impl<'a> From<&'a RhsValue> for LhsValue<'a> {
             RhsValue::Ip(ip) => LhsValue::Ip(*ip),
             RhsValue::Bytes(bytes) => LhsValue::Bytes(Cow::Borrowed(bytes)),
             RhsValue::Int(integer) => LhsValue::Int(*integer),
-            RhsValue::EvmAddr(addr) => LhsValue::EvmAddr(addr.clone()),
+            RhsValue::HexString(addr) => LhsValue::HexString(addr.clone()),
             RhsValue::Bool(b) => match *b {},
             RhsValue::Array(a) => match *a {},
             RhsValue::Map(m) => match *m {},
@@ -454,7 +454,7 @@ impl<'a> From<RhsValue> for LhsValue<'a> {
             RhsValue::Ip(ip) => LhsValue::Ip(ip),
             RhsValue::Bytes(bytes) => LhsValue::Bytes(Cow::Owned(bytes.into())),
             RhsValue::Int(integer) => LhsValue::Int(integer),
-            RhsValue::EvmAddr(addr) => LhsValue::EvmAddr(addr.clone()),
+            RhsValue::HexString(addr) => LhsValue::HexString(addr.clone()),
             RhsValue::Bool(b) => match b {},
             RhsValue::Array(a) => match a {},
             RhsValue::Map(m) => match m {},
@@ -470,7 +470,7 @@ impl<'a> LhsValue<'a> {
             LhsValue::Ip(ip) => LhsValue::Ip(*ip),
             LhsValue::Bytes(bytes) => LhsValue::Bytes(Cow::Borrowed(bytes)),
             LhsValue::Int(integer) => LhsValue::Int(*integer),
-            LhsValue::EvmAddr(addr) => LhsValue::EvmAddr(addr.clone()),
+            LhsValue::HexString(addr) => LhsValue::HexString(addr.clone()),
             LhsValue::Bool(b) => LhsValue::Bool(*b),
             LhsValue::Array(a) => LhsValue::Array(a.as_ref()),
             LhsValue::Map(m) => LhsValue::Map(m.as_ref()),
@@ -483,7 +483,7 @@ impl<'a> LhsValue<'a> {
             LhsValue::Ip(ip) => LhsValue::Ip(ip),
             LhsValue::Bytes(bytes) => LhsValue::Bytes(Cow::Owned(bytes.into_owned())),
             LhsValue::Int(i) => LhsValue::Int(i),
-            LhsValue::EvmAddr(addr) => LhsValue::EvmAddr(addr.clone()),
+            LhsValue::HexString(addr) => LhsValue::HexString(addr.clone()),
             LhsValue::Bool(b) => LhsValue::Bool(b),
             LhsValue::Array(arr) => LhsValue::Array(arr.into_owned()),
             LhsValue::Map(map) => LhsValue::Map(map.into_owned()),
@@ -603,7 +603,7 @@ impl<'a> Serialize for LhsValue<'a> {
             }
             LhsValue::Int(num) => num.serialize(serializer),
             LhsValue::Bool(b) => b.serialize(serializer),
-            LhsValue::EvmAddr(addr) => addr.serialize(serializer),
+            LhsValue::HexString(addr) => addr.serialize(serializer),
             LhsValue::Array(arr) => arr.serialize(serializer),
             LhsValue::Map(map) => map.serialize(serializer),
         }
@@ -626,7 +626,7 @@ impl<'de, 'a> DeserializeSeed<'de> for LhsValueSeed<'a> {
             Type::Bytes => Ok(LhsValue::Bytes(
                 BytesOrString::deserialize(deserializer)?.into_bytes(),
             )),
-            Type::EvmAddr => Ok(LhsValue::EvmAddr(EvmAddr {
+            Type::HexString => Ok(LhsValue::HexString(HexString {
                 data: BytesOrHexString::deserialize(deserializer)?.into_bytes(),
             })),
             Type::Array(ty) => Ok(LhsValue::Array({
@@ -706,7 +706,7 @@ declare_types!(
     Bytes(#[serde(borrow)] Cow<'a, [u8]> | Bytes | Bytes),
 
     /// An EVM chain address.
-    EvmAddr(EvmAddr | EvmAddr | EvmAddr),
+    HexString(HexString | HexString | HexString),
 
     /// An Array of [`Type`].
     Array[Box<Type>](#[serde(skip_deserializing)] Array<'a> | UninhabitedArray | UninhabitedArray),
