@@ -626,9 +626,9 @@ impl<'de, 'a> DeserializeSeed<'de> for LhsValueSeed<'a> {
             Type::Bytes => Ok(LhsValue::Bytes(
                 BytesOrString::deserialize(deserializer)?.into_bytes(),
             )),
-            Type::HexString => Ok(LhsValue::HexString(HexString {
-                data: BytesOrHexString::deserialize(deserializer)?.into_bytes(),
-            })),
+            Type::HexString => Ok(LhsValue::HexString(HexString::new(
+                BytesOrHexString::deserialize(deserializer)?.into_bytes(),
+            ))),
             Type::Array(ty) => Ok(LhsValue::Array({
                 let mut arr = Array::new((**ty).clone());
                 arr.deserialize(deserializer)?;

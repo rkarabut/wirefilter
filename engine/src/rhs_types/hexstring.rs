@@ -7,7 +7,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(transparent)]
 pub struct HexString {
-    pub data: Vec<u8>,
+    data: Vec<u8>,
+}
+
+impl HexString {
+    pub fn new(data: Vec<u8>) -> Self {
+        Self { data }
+    }
 }
 
 fn lex_digits(input: &str) -> LexResult<'_, &str> {
