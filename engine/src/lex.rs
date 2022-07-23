@@ -38,6 +38,10 @@ pub enum LexErrorKind {
     #[error("{0}")]
     ParseRegex(#[source] RegexError),
 
+    /// Expected the next token to be a hex string
+    #[error("{0}")]
+    ParseHexString(#[source] hex::FromHexError),
+
     /// Expected the next token to be an escape character
     #[error("expected \", xHH or OOO after \\")]
     InvalidCharacterEscape,
@@ -182,6 +186,12 @@ const SPACE_CHARS: &[char] = &[' ', '\r', '\n'];
 
 pub fn skip_space(input: &str) -> &str {
     input.trim_start_matches(SPACE_CHARS)
+}
+
+/// Convert hex string to bytes, ignoring 0x prefix and case
+/// Return None on error
+pub fn from_hex(input: &str) -> Option<Vec<u8>> {
+    hex::decode(input.strip_prefix("0x").unwrap_or(input)).ok()
 }
 
 /// This macro generates enum declaration + lexer implementation.

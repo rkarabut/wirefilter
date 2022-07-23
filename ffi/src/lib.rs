@@ -32,6 +32,7 @@ pub enum CTypeTag {
     Bytes,
     Int,
     Bool,
+    EvmAddr,
     Array,
     Map,
 }
@@ -50,6 +51,7 @@ impl From<CType> for Type {
             CTypeTag::Bytes => Type::Bytes,
             CTypeTag::Int => Type::Int,
             CTypeTag::Bool => Type::Bool,
+            CTypeTag::EvmAddr => Type::EvmAddr,
             CTypeTag::Array => Type::Array(ty.data.unwrap()),
             CTypeTag::Map => Type::Map(ty.data.unwrap()),
         }
@@ -73,6 +75,10 @@ impl From<Type> for CType {
             },
             Type::Bool => CType {
                 tag: CTypeTag::Bool.into(),
+                data: None,
+            },
+            Type::EvmAddr => CType {
+                tag: CTypeTag::EvmAddr.into(),
                 data: None,
             },
             Type::Array(arr) => CType {

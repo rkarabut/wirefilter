@@ -10,7 +10,7 @@ use crate::{
     lex::{expect, skip_space, span, Lex, LexErrorKind, LexResult, LexWith},
     list_matcher::ListMatcher,
     range_set::RangeSet,
-    rhs_types::{Bytes, ExplicitIpRange, ListName, Regex},
+    rhs_types::{Bytes, EvmAddr, ExplicitIpRange, ListName, Regex},
     scheme::{Field, Identifier, List, Scheme},
     searcher::{EmptySearcher, TwoWaySearcher},
     strict_partial_ord::StrictPartialOrd,
@@ -486,6 +486,14 @@ impl<'s> Expr<'s> for ComparisonExpr<'s> {
 
                     lhs.compile_with(compiler, false, move |x, _ctx| {
                         values.contains(cast_value!(x, Bytes) as &[u8])
+                    })
+                }
+                RhsValues::EvmAddr(values) => {
+                    let values: IndexSet<Box<EvmAddr>, FnvBuildHasher> =
+                        values.into_iter().map(Into::into).collect();
+
+                    lhs.compile_with(compiler, false, move |x, _ctx| {
+                        values.contains(cast_value!(x, EvmAddr))
                     })
                 }
                 RhsValues::Bool(_) => unreachable!(),
