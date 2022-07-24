@@ -498,6 +498,13 @@ impl<'s> Expr<'s> for ComparisonExpr<'s> {
                         values.contains(cast_value!(x, HexString))
                     })
                 }
+                RhsValues::U256(values) => {
+                    let values: RangeSet<_> = values.into_iter().map(Into::into).collect();
+
+                    lhs.compile_with(compiler, false, move |x, _ctx| {
+                        values.contains(cast_value!(x, U256))
+                    })
+                }
                 RhsValues::Bool(_) => unreachable!(),
                 RhsValues::Map(_) => unreachable!(),
                 RhsValues::Array(_) => unreachable!(),

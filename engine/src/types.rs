@@ -2,7 +2,8 @@ use crate::{
     lex::{expect, from_hex, skip_space, Lex, LexResult, LexWith},
     lhs_types::{Array, ArrayIterator, Map, MapIter, MapValuesIntoIter},
     rhs_types::{
-        Bytes, HexString, IntRange, IpRange, UninhabitedArray, UninhabitedBool, UninhabitedMap,
+        Bytes, HexString, IntRange, IpRange, U256Range, U256Wrapper, UninhabitedArray,
+        UninhabitedBool, UninhabitedMap,
     },
     scheme::{FieldIndex, IndexAccessError},
     strict_partial_ord::StrictPartialOrd,
@@ -441,6 +442,7 @@ impl<'a> From<&'a RhsValue> for LhsValue<'a> {
             RhsValue::Bytes(bytes) => LhsValue::Bytes(Cow::Borrowed(bytes)),
             RhsValue::Int(integer) => LhsValue::Int(*integer),
             RhsValue::HexString(addr) => LhsValue::HexString(addr.clone()),
+            RhsValue::U256(integer) => LhsValue::U256(*integer),
             RhsValue::Bool(b) => match *b {},
             RhsValue::Array(a) => match *a {},
             RhsValue::Map(m) => match *m {},
@@ -455,6 +457,7 @@ impl<'a> From<RhsValue> for LhsValue<'a> {
             RhsValue::Bytes(bytes) => LhsValue::Bytes(Cow::Owned(bytes.into())),
             RhsValue::Int(integer) => LhsValue::Int(integer),
             RhsValue::HexString(addr) => LhsValue::HexString(addr.clone()),
+            RhsValue::U256(integer) => LhsValue::U256(integer),
             RhsValue::Bool(b) => match b {},
             RhsValue::Array(a) => match a {},
             RhsValue::Map(m) => match m {},
@@ -471,6 +474,7 @@ impl<'a> LhsValue<'a> {
             LhsValue::Bytes(bytes) => LhsValue::Bytes(Cow::Borrowed(bytes)),
             LhsValue::Int(integer) => LhsValue::Int(*integer),
             LhsValue::HexString(addr) => LhsValue::HexString(addr.clone()),
+            LhsValue::U256(integer) => LhsValue::U256(*integer),
             LhsValue::Bool(b) => LhsValue::Bool(*b),
             LhsValue::Array(a) => LhsValue::Array(a.as_ref()),
             LhsValue::Map(m) => LhsValue::Map(m.as_ref()),
@@ -484,6 +488,7 @@ impl<'a> LhsValue<'a> {
             LhsValue::Bytes(bytes) => LhsValue::Bytes(Cow::Owned(bytes.into_owned())),
             LhsValue::Int(i) => LhsValue::Int(i),
             LhsValue::HexString(addr) => LhsValue::HexString(addr.clone()),
+            LhsValue::U256(i) => LhsValue::U256(i),
             LhsValue::Bool(b) => LhsValue::Bool(b),
             LhsValue::Array(arr) => LhsValue::Array(arr.into_owned()),
             LhsValue::Map(map) => LhsValue::Map(map.into_owned()),
@@ -604,6 +609,7 @@ impl<'a> Serialize for LhsValue<'a> {
             LhsValue::Int(num) => num.serialize(serializer),
             LhsValue::Bool(b) => b.serialize(serializer),
             LhsValue::HexString(addr) => addr.serialize(serializer),
+            LhsValue::U256(num) => num.serialize(serializer),
             LhsValue::Array(arr) => arr.serialize(serializer),
             LhsValue::Map(map) => map.serialize(serializer),
         }
@@ -629,6 +635,7 @@ impl<'de, 'a> DeserializeSeed<'de> for LhsValueSeed<'a> {
             Type::HexString => Ok(LhsValue::HexString(HexString::new(
                 BytesOrHexString::deserialize(deserializer)?.into_bytes(),
             ))),
+            Type::U256 => Ok(LhsValue::U256(U256Wrapper::deserialize(deserializer)?)),
             Type::Array(ty) => Ok(LhsValue::Array({
                 let mut arr = Array::new((**ty).clone());
                 arr.deserialize(deserializer)?;
@@ -705,8 +712,11 @@ declare_types!(
     /// syntax representation, so we represent them as a single type.
     Bytes(#[serde(borrow)] Cow<'a, [u8]> | Bytes | Bytes),
 
-    /// An EVM chain address.
+    /// A hex string representing a raw byte sequence.
     HexString(HexString | HexString | HexString),
+
+    /// A 256-bit unsigned integer.
+    U256(U256Wrapper | U256Wrapper | U256Range),
 
     /// An Array of [`Type`].
     Array[Box<Type>](#[serde(skip_deserializing)] Array<'a> | UninhabitedArray | UninhabitedArray),

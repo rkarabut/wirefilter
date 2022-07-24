@@ -19,5 +19,5 @@ pub use self::{
     list::ListName,
     map::UninhabitedMap,
     regex::{Error as RegexError, Regex},
-    u256::U256Error,
+    u256::{U256Error, U256Range, U256Wrapper},
 };

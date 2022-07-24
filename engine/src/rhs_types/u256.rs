@@ -3,11 +3,11 @@ use crate::{
     strict_partial_ord::StrictPartialOrd,
 };
 use bigint::uint::U256;
-use serde::{Serialize, Serializer};
+use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::RangeInclusive;
 use thiserror::Error;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct U256Wrapper {
     pub value: bigint::uint::U256,
 }
@@ -29,6 +29,41 @@ impl Serialize for U256Wrapper {
     }
 }
 
+struct U256Visitor;
+
+impl<'de> Visitor<'de> for U256Visitor {
+    type Value = U256Wrapper;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("an integer between 0 and 2^256")
+    }
+
+    fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        if value.len() > 32 {
+            Err(E::custom(format!(
+                "u256 out of range, too many bytes supplied: {}",
+                value.len()
+            )))
+        } else {
+            Ok(U256Wrapper {
+                value: U256::from_big_endian(&value[..32]),
+            })
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for U256Wrapper {
+    fn deserialize<D>(deserializer: D) -> Result<U256Wrapper, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_bytes(U256Visitor)
+    }
+}
+
 impl std::fmt::Display for U256Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -43,7 +78,7 @@ fn lex_digits(input: &str) -> LexResult<'_, &str> {
     take_while(input, "digit", |c| c.is_digit(16))
 }
 
-impl<'i> Lex<'i> for U256 {
+impl<'i> Lex<'i> for U256Wrapper {
     fn lex(input: &str) -> LexResult<'_, Self> {
         if let Ok(input) = expect(input, "0x") {
             let (data, rest) = lex_digits(input)?;
@@ -59,7 +94,12 @@ impl<'i> Lex<'i> for U256 {
             };
             match hex::decode(maybe_padded) {
                 Err(e) => Err((LexErrorKind::ParseU256(U256Error::ParseHex(e)), rest)),
-                Ok(data) => Ok((U256::from_big_endian(&data), rest)),
+                Ok(data) => Ok((
+                    U256Wrapper {
+                        value: U256::from_big_endian(&data),
+                    },
+                    rest,
+                )),
             }
         } else {
             let (data, rest) = lex_digits(input)?;
@@ -68,7 +108,7 @@ impl<'i> Lex<'i> for U256 {
                     LexErrorKind::ParseU256(U256Error::ParseDec(format!("{:?}", e))),
                     rest,
                 )),
-                Ok(value) => Ok((value, rest)),
+                Ok(value) => Ok((U256Wrapper { value }, rest)),
             }
         }
     }
@@ -99,12 +139,18 @@ impl From<RangeInclusive<U256>> for U256Range {
     }
 }
 
+impl From<U256Range> for RangeInclusive<U256Wrapper> {
+    fn from(range: U256Range) -> Self {
+        range.0
+    }
+}
+
 impl<'i> Lex<'i> for U256Range {
     fn lex(input: &str) -> LexResult<'_, Self> {
         let initial_input = input;
-        let (first, input) = U256::lex(input)?;
+        let (first, input) = U256Wrapper::lex(input)?;
         let (last, input) = if let Ok(input) = expect(input, "..") {
-            U256::lex(input)?
+            U256Wrapper::lex(input)?
         } else {
             (first, input)
         };
@@ -114,27 +160,33 @@ impl<'i> Lex<'i> for U256Range {
                 span(initial_input, input),
             ));
         }
-        Ok(((first..=last).into(), input))
+        Ok(((first.value..=last.value).into(), input))
     }
 }
 
-impl From<U256Range> for RangeInclusive<U256Wrapper> {
-    fn from(range: U256Range) -> Self {
-        range.0
+impl PartialEq<U256Wrapper> for U256 {
+    fn eq(&self, other: &U256Wrapper) -> bool {
+        self.eq(&other.value)
     }
 }
 
-impl StrictPartialOrd for U256 {}
+impl PartialOrd<U256Wrapper> for U256 {
+    fn partial_cmp(&self, other: &U256Wrapper) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(&other.value))
+    }
+}
+
+impl StrictPartialOrd for U256Wrapper {}
 
 #[test]
 fn test() {
-    assert_ok!(U256::lex("0"), U256::from(0i32), "");
-    assert_ok!(U256::lex("0-"), U256::from(0i32), "-");
-    assert_ok!(U256::lex("0x1f5+"), U256::from(501i32), "+");
-    assert_ok!(U256::lex("78!"), U256::from(78i32), "!");
-    assert_ok!(U256::lex("0xefg"), U256::from(239i32), "g");
+    assert_ok!(U256Wrapper::lex("0"), U256::from(0i32), "");
+    assert_ok!(U256Wrapper::lex("0-"), U256::from(0i32), "-");
+    assert_ok!(U256Wrapper::lex("0x1f5+"), U256::from(501i32), "+");
+    assert_ok!(U256Wrapper::lex("78!"), U256::from(78i32), "!");
+    assert_ok!(U256Wrapper::lex("0xefg"), U256::from(239i32), "g");
     assert_err!(
-        U256::lex("21474836480000000000000000000000000000000000000000000000000000000000000000000000000!"),
+        U256Wrapper::lex("21474836480000000000000000000000000000000000000000000000000000000000000000000000000!"),
         LexErrorKind::ParseU256(U256Error::ParseDec(
             format!("{:?}", U256::from_dec_str("21474836480000000000000000000000000000000000000000000000000000000000000000000000000")
                 .unwrap_err())
@@ -142,7 +194,7 @@ fn test() {
         "!"
     );
     assert_err!(
-        U256::lex("10fex"),
+        U256Wrapper::lex("10fex"),
         LexErrorKind::ParseU256(U256Error::ParseDec(format!(
             "{:?}",
             U256::from_dec_str("10fe").unwrap_err()
