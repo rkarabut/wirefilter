@@ -121,7 +121,7 @@ impl<'a> Array<'a> {
             },
             data: match self.data {
                 InnerArray::Owned(ref vec) => InnerArray::Borrowed(&vec[..]),
-                InnerArray::Borrowed(ref slice) => InnerArray::Borrowed(slice),
+                InnerArray::Borrowed(slice) => InnerArray::Borrowed(slice),
             },
         }
     }

@@ -391,9 +391,9 @@ impl<'a> BytesOrHexString<'a> {
     pub fn into_bytes(self) -> Vec<u8> {
         match self {
             BytesOrHexString::BorrowedBytes(slice) => (*slice).into(),
-            BytesOrHexString::OwnedBytes(vec) => vec.into(),
-            BytesOrHexString::BorrowedString(s) => from_hex(s).unwrap_or_else(|| vec![]).into(),
-            BytesOrHexString::OwnedString(s) => from_hex(&s).unwrap_or_else(|| vec![]).into(),
+            BytesOrHexString::OwnedBytes(vec) => vec,
+            BytesOrHexString::BorrowedString(s) => from_hex(s).unwrap_or_else(Vec::new),
+            BytesOrHexString::OwnedString(s) => from_hex(&s).unwrap_or_else(Vec::new),
         }
     }
 }
@@ -456,7 +456,7 @@ impl<'a> From<RhsValue> for LhsValue<'a> {
             RhsValue::Ip(ip) => LhsValue::Ip(ip),
             RhsValue::Bytes(bytes) => LhsValue::Bytes(Cow::Owned(bytes.into())),
             RhsValue::Int(integer) => LhsValue::Int(integer),
-            RhsValue::HexString(addr) => LhsValue::HexString(addr.clone()),
+            RhsValue::HexString(addr) => LhsValue::HexString(addr),
             RhsValue::U256(integer) => LhsValue::U256(integer),
             RhsValue::Bool(b) => match b {},
             RhsValue::Array(a) => match a {},
@@ -487,7 +487,7 @@ impl<'a> LhsValue<'a> {
             LhsValue::Ip(ip) => LhsValue::Ip(ip),
             LhsValue::Bytes(bytes) => LhsValue::Bytes(Cow::Owned(bytes.into_owned())),
             LhsValue::Int(i) => LhsValue::Int(i),
-            LhsValue::HexString(addr) => LhsValue::HexString(addr.clone()),
+            LhsValue::HexString(addr) => LhsValue::HexString(addr),
             LhsValue::U256(i) => LhsValue::U256(i),
             LhsValue::Bool(b) => LhsValue::Bool(b),
             LhsValue::Array(arr) => LhsValue::Array(arr.into_owned()),

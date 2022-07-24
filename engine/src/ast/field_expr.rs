@@ -515,7 +515,7 @@ impl<'s> Expr<'s> for ComparisonExpr<'s> {
             ComparisonOpExpr::InList { name, list } => {
                 lhs.compile_with(compiler, false, move |val, ctx| {
                     ctx.get_list_matcher_unchecked(list)
-                        .match_value(name.as_str(), &val)
+                        .match_value(name.as_str(), val)
                 })
             }
         }

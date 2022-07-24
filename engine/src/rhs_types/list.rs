@@ -15,9 +15,8 @@ impl<'i> Lex<'i> for ListName {
     fn lex(input: &str) -> LexResult<'_, Self> {
         let mut res = String::new();
         let mut rest;
-        let mut iter;
         let input = expect(input, "$")?;
-        iter = input.chars();
+        let mut iter = input.chars();
         loop {
             rest = iter.as_str();
             match iter.next() {

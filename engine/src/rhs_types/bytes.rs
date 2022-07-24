@@ -136,14 +136,14 @@ impl<'i> Lex<'i> for Bytes {
             loop {
                 match iter
                     .next()
-                    .ok_or_else(|| (LexErrorKind::MissingEndingQuote, full_input))?
+                    .ok_or((LexErrorKind::MissingEndingQuote, full_input))?
                 {
                     '\\' => {
                         let input = iter.as_str();
 
                         let c = iter
                             .next()
-                            .ok_or_else(|| (LexErrorKind::MissingEndingQuote, full_input))?;
+                            .ok_or((LexErrorKind::MissingEndingQuote, full_input))?;
 
                         res.push(match c {
                             '"' | '\\' => c,

@@ -173,8 +173,8 @@ impl<'i, T: Lex<'i>, E> LexWith<'i, E> for T {
 }
 
 pub fn expect<'i>(input: &'i str, s: &'static str) -> Result<&'i str, LexError<'i>> {
-    if input.starts_with(s) {
-        Ok(&input[s.len()..])
+    if let Some(stripped) = input.strip_prefix(s) {
+        Ok(stripped)
     } else {
         Err((LexErrorKind::ExpectedLiteral(s), input))
     }
@@ -304,7 +304,7 @@ pub fn take_while<'i, F: Fn(char) -> bool>(
 pub fn take(input: &str, expected: usize) -> LexResult<'_, &str> {
     let mut chars = input.chars();
     for i in 0..expected {
-        chars.next().ok_or_else(|| {
+        chars.next().ok_or({
             (
                 LexErrorKind::CountMismatch {
                     name: "character",

@@ -73,7 +73,7 @@ impl<'de> Deserialize<'de> for U256Wrapper {
 impl std::fmt::Display for U256Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::ParseHex(e) => write!(f, "{}", e.to_string()),
+            Self::ParseHex(e) => write!(f, "{}", e),
             Self::ParseDec(s) => write!(f, "{}", s),
         }
     }
@@ -91,7 +91,7 @@ impl<'i> Lex<'i> for U256Wrapper {
             let mut padded = String::new();
             let maybe_padded = {
                 if data.len() % 2 != 0 {
-                    padded.push_str("0");
+                    padded.push('0');
                     padded.push_str(data);
                     &padded
                 } else {
