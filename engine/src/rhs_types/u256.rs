@@ -10,7 +10,7 @@ use thiserror::Error;
 #[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
 /// 256-bit unsigned integer literal wrapper
 pub struct U256Wrapper {
-    /// Inner 256-bit unsigned integer value 
+    /// Inner 256-bit unsigned integer value
     pub value: bigint::uint::U256,
 }
 

@@ -10,7 +10,7 @@ use crate::{
     lex::{expect, skip_space, span, Lex, LexErrorKind, LexResult, LexWith},
     list_matcher::ListMatcher,
     range_set::RangeSet,
-    rhs_types::{Bytes, ExplicitIpRange, HexString, ListName, Regex},
+    rhs_types::{Bytes, ExplicitIpRange, HexString, ListName, Regex, U256Wrapper},
     scheme::{Field, Identifier, List, Scheme},
     searcher::{EmptySearcher, TwoWaySearcher},
     strict_partial_ord::StrictPartialOrd,
@@ -85,6 +85,10 @@ lex_enum!(IntOp {
     "&" | "bitwise_and" => BitwiseAnd,
 });
 
+lex_enum!(U256Op {
+    "&" | "bitwise_and" => BitwiseAnd,
+});
+
 lex_enum!(BytesOp {
     "contains" => Contains,
     "~" | "matches" => Matches,
@@ -94,6 +98,7 @@ lex_enum!(ComparisonOp {
     "in" => In,
     OrderingOp => Ordering,
     IntOp => Int,
+    U256Op => U256,
     BytesOp => Bytes,
 });
 
@@ -127,6 +132,15 @@ pub enum ComparisonOpExpr<'s> {
         op: IntOp,
         /// Right-hand side integer value
         rhs: i32,
+    },
+
+    /// 256-bit unsigned integer comparison
+    U256 {
+        /// Integer comparison operator:
+        /// * "&" | "bitwise_and"
+        op: U256Op,
+        /// Right-hand side integer value
+        rhs: U256Wrapper,
     },
 
     /// "contains" comparison
@@ -317,6 +331,19 @@ impl<'s> ComparisonExpr<'s> {
                         (ComparisonOpExpr::OneOf(rhs), input)
                     }
                 }
+                (Type::U256, ComparisonOp::In) => {
+                    if expect(input, "$").is_ok() {
+                        let (name, input) = ListName::lex(input)?;
+                        let list = scheme.get_list(&lhs_type).ok_or((
+                            LexErrorKind::UnsupportedOp { lhs_type },
+                            span(initial_input, input),
+                        ))?;
+                        (ComparisonOpExpr::InList { name, list }, input)
+                    } else {
+                        let (rhs, input) = RhsValues::lex_with(input, lhs_type)?;
+                        (ComparisonOpExpr::OneOf(rhs), input)
+                    }
+                }
                 (Type::Ip, ComparisonOp::Ordering(op))
                 | (Type::Bytes, ComparisonOp::Ordering(op))
                 | (Type::HexString, ComparisonOp::Ordering(op))
@@ -324,9 +351,17 @@ impl<'s> ComparisonExpr<'s> {
                     let (rhs, input) = RhsValue::lex_with(input, lhs_type)?;
                     (ComparisonOpExpr::Ordering { op, rhs }, input)
                 }
+                (Type::U256, ComparisonOp::Ordering(op)) => {
+                    let (rhs, input) = RhsValue::lex_with(input, lhs_type)?;
+                    (ComparisonOpExpr::Ordering { op, rhs }, input)
+                }
                 (Type::Int, ComparisonOp::Int(op)) => {
                     let (rhs, input) = i32::lex(input)?;
                     (ComparisonOpExpr::Int { op, rhs }, input)
+                }
+                (Type::U256, ComparisonOp::U256(op)) => {
+                    let (rhs, input) = U256Wrapper::lex(input)?;
+                    (ComparisonOpExpr::U256 { op, rhs }, input)
                 }
                 (Type::Bytes, ComparisonOp::Bytes(op)) => match op {
                     BytesOp::Contains => {
@@ -404,6 +439,13 @@ impl<'s> Expr<'s> for ComparisonExpr<'s> {
                 rhs,
             } => lhs.compile_with(compiler, false, move |x, _ctx| {
                 cast_value!(x, Int) & rhs != 0
+            }),
+            ComparisonOpExpr::U256 {
+                op: U256Op::BitwiseAnd,
+                rhs,
+            } => lhs.compile_with(compiler, false, move |x, _ctx| {
+                cast_value!(x, U256).value & rhs.value
+                    != U256Wrapper::from(bigint::uint::U256::from(0u8))
             }),
             ComparisonOpExpr::Contains(bytes) => {
                 macro_rules! search {
