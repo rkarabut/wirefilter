@@ -1043,34 +1043,31 @@ mod ffi_test {
             )
             .unwrap();
 
-            assert_eq!(
+            assert!(
                 wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("num1")).unwrap(),
-                true,
             );
 
-            assert_eq!(
-                wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("num2")).unwrap(),
-                false,
+            assert!(
+                !wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("num2"))
+                    .unwrap(),
             );
 
-            assert_eq!(
-                wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("str1")).unwrap(),
-                false
+            assert!(
+                !wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("str1"))
+                    .unwrap(),
             );
 
-            assert_eq!(
-                wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("str2")).unwrap(),
-                false,
+            assert!(
+                !wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("str2"))
+                    .unwrap(),
             );
 
-            assert_eq!(
-                wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("ip1")).unwrap(),
-                false,
+            assert!(
+                !wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("ip1")).unwrap(),
             );
 
-            assert_eq!(
-                wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("ip2")).unwrap(),
-                false,
+            assert!(
+                !wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("ip2")).unwrap(),
             );
 
             wirefilter_free_parsed_filter(filter);
