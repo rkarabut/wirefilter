@@ -100,7 +100,7 @@ pub use self::{
         AlwaysList, AlwaysListMatcher, ListDefinition, ListMatcher, ListMatcherWrapper, NeverList,
         NeverListMatcher,
     },
-    rhs_types::{Bytes, Regex, RegexError},
+    rhs_types::{Bytes, HexString, Regex, RegexError},
     scheme::{
         Field, FieldIndex, FieldRedefinitionError, Function, FunctionRedefinitionError, Identifier,
         IdentifierRedefinitionError, List, ParseError, Scheme, SchemeMismatchError,
