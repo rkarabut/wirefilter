@@ -12,6 +12,12 @@ pub struct U256Wrapper {
     pub value: bigint::uint::U256,
 }
 
+impl From<U256> for U256Wrapper {
+    fn from(value: U256) -> Self {
+        Self { value }
+    }
+}
+
 #[derive(Debug, PartialEq, Error)]
 pub enum U256Error {
     ParseHex(#[source] hex::FromHexError),
@@ -180,11 +186,11 @@ impl StrictPartialOrd for U256Wrapper {}
 
 #[test]
 fn test() {
-    assert_ok!(U256Wrapper::lex("0"), U256::from(0i32), "");
-    assert_ok!(U256Wrapper::lex("0-"), U256::from(0i32), "-");
-    assert_ok!(U256Wrapper::lex("0x1f5+"), U256::from(501i32), "+");
-    assert_ok!(U256Wrapper::lex("78!"), U256::from(78i32), "!");
-    assert_ok!(U256Wrapper::lex("0xefg"), U256::from(239i32), "g");
+    assert_ok!(U256Wrapper::lex("0"), U256::from(0i32).into(), "");
+    assert_ok!(U256Wrapper::lex("0-"), U256::from(0i32).into(), "-");
+    assert_ok!(U256Wrapper::lex("0x1f5+"), U256::from(501i32).into(), "+");
+    assert_ok!(U256Wrapper::lex("78!"), U256::from(78i32).into(), "!");
+    assert_ok!(U256Wrapper::lex("0xefg"), U256::from(239i32).into(), "g");
     assert_err!(
         U256Wrapper::lex("21474836480000000000000000000000000000000000000000000000000000000000000000000000000!"),
         LexErrorKind::ParseU256(U256Error::ParseDec(
