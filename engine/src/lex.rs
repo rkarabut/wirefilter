@@ -42,6 +42,10 @@ pub enum LexErrorKind {
     #[error("{0}")]
     ParseHexString(#[source] hex::FromHexError),
 
+    /// Expected the next token to be a representation of U256
+    #[error("{0}")]
+    ParseU256(#[source] crate::rhs_types::U256Error),
+
     /// Expected the next token to be an escape character
     #[error("expected \", xHH or OOO after \\")]
     InvalidCharacterEscape,

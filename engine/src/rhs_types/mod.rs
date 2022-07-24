@@ -7,6 +7,7 @@ mod ip;
 mod list;
 mod map;
 mod regex;
+mod u256;
 
 pub use self::{
     array::UninhabitedArray,
@@ -18,4 +19,5 @@ pub use self::{
     list::ListName,
     map::UninhabitedMap,
     regex::{Error as RegexError, Regex},
+    u256::U256Error,
 };
