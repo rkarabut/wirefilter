@@ -16,6 +16,11 @@ impl HexString {
     pub fn new(data: Vec<u8>) -> Self {
         Self { data }
     }
+
+    /// Returns the underlying data.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.data.as_ref()
+    }
 }
 
 fn lex_digits(input: &str) -> LexResult<'_, &str> {
