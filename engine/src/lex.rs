@@ -38,6 +38,14 @@ pub enum LexErrorKind {
     #[error("{0}")]
     ParseRegex(#[source] RegexError),
 
+    /// Expected the next token to be a hex string
+    #[error("{0}")]
+    ParseHexString(#[source] hex::FromHexError),
+
+    /// Expected the next token to be a representation of U256
+    #[error("{0}")]
+    ParseU256(#[source] crate::rhs_types::U256Error),
+
     /// Expected the next token to be an escape character
     #[error("expected \", xHH or OOO after \\")]
     InvalidCharacterEscape,
@@ -165,8 +173,8 @@ impl<'i, T: Lex<'i>, E> LexWith<'i, E> for T {
 }
 
 pub fn expect<'i>(input: &'i str, s: &'static str) -> Result<&'i str, LexError<'i>> {
-    if input.starts_with(s) {
-        Ok(&input[s.len()..])
+    if let Some(stripped) = input.strip_prefix(s) {
+        Ok(stripped)
     } else {
         Err((LexErrorKind::ExpectedLiteral(s), input))
     }
@@ -182,6 +190,12 @@ const SPACE_CHARS: &[char] = &[' ', '\r', '\n'];
 
 pub fn skip_space(input: &str) -> &str {
     input.trim_start_matches(SPACE_CHARS)
+}
+
+/// Convert hex string to bytes, ignoring 0x prefix and case
+/// Return None on error
+pub fn from_hex(input: &str) -> Option<Vec<u8>> {
+    hex::decode(input.strip_prefix("0x").unwrap_or(input)).ok()
 }
 
 /// This macro generates enum declaration + lexer implementation.
@@ -290,7 +304,7 @@ pub fn take_while<'i, F: Fn(char) -> bool>(
 pub fn take(input: &str, expected: usize) -> LexResult<'_, &str> {
     let mut chars = input.chars();
     for i in 0..expected {
-        chars.next().ok_or_else(|| {
+        chars.next().ok_or({
             (
                 LexErrorKind::CountMismatch {
                     name: "character",

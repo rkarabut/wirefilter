@@ -48,7 +48,7 @@ impl<'i> Lex<'i> for Regex {
                 let before_char = iter.as_str();
                 match iter
                     .next()
-                    .ok_or_else(|| (LexErrorKind::MissingEndingQuote, input))?
+                    .ok_or((LexErrorKind::MissingEndingQuote, input))?
                 {
                     '\\' => {
                         if let Some(c) = iter.next() {

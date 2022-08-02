@@ -32,6 +32,8 @@ pub enum CTypeTag {
     Bytes,
     Int,
     Bool,
+    HexString,
+    U256,
     Array,
     Map,
 }
@@ -50,6 +52,8 @@ impl From<CType> for Type {
             CTypeTag::Bytes => Type::Bytes,
             CTypeTag::Int => Type::Int,
             CTypeTag::Bool => Type::Bool,
+            CTypeTag::HexString => Type::HexString,
+            CTypeTag::U256 => Type::U256,
             CTypeTag::Array => Type::Array(ty.data.unwrap()),
             CTypeTag::Map => Type::Map(ty.data.unwrap()),
         }
@@ -73,6 +77,14 @@ impl From<Type> for CType {
             },
             Type::Bool => CType {
                 tag: CTypeTag::Bool.into(),
+                data: None,
+            },
+            Type::HexString => CType {
+                tag: CTypeTag::HexString.into(),
+                data: None,
+            },
+            Type::U256 => CType {
+                tag: CTypeTag::U256.into(),
                 data: None,
             },
             Type::Array(arr) => CType {
@@ -1031,34 +1043,31 @@ mod ffi_test {
             )
             .unwrap();
 
-            assert_eq!(
+            assert!(
                 wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("num1")).unwrap(),
-                true,
             );
 
-            assert_eq!(
-                wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("num2")).unwrap(),
-                false,
+            assert!(
+                !wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("num2"))
+                    .unwrap(),
             );
 
-            assert_eq!(
-                wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("str1")).unwrap(),
-                false
+            assert!(
+                !wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("str1"))
+                    .unwrap(),
             );
 
-            assert_eq!(
-                wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("str2")).unwrap(),
-                false,
+            assert!(
+                !wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("str2"))
+                    .unwrap(),
             );
 
-            assert_eq!(
-                wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("ip1")).unwrap(),
-                false,
+            assert!(
+                !wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("ip1")).unwrap(),
             );
 
-            assert_eq!(
-                wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("ip2")).unwrap(),
-                false,
+            assert!(
+                !wirefilter_filter_uses_list(&filter, ExternallyAllocatedStr::from("ip2")).unwrap(),
             );
 
             wirefilter_free_parsed_filter(filter);

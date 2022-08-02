@@ -79,7 +79,7 @@ impl<'i> Lex<'i> for IpRange {
             })
         } else {
             IpRange::Cidr(cidr::IpCidr::from_str(chunk).map_err(|err| {
-                let split_pos = chunk.find('/').unwrap_or_else(|| chunk.len());
+                let split_pos = chunk.find('/').unwrap_or(chunk.len());
                 let err_span = match err {
                     NetworkParseError::AddrParseError(_) | NetworkParseError::InvalidHostPart => {
                         &chunk[..split_pos]
