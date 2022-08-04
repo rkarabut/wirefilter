@@ -92,7 +92,7 @@ pub use self::{
         FunctionArgInvalidConstantError, FunctionArgKind, FunctionArgKindMismatchError,
         FunctionArgs, FunctionDefinition, FunctionDefinitionContext, FunctionParam,
         FunctionParamError, SimpleFunctionDefinition, SimpleFunctionImpl, SimpleFunctionOptParam,
-        SimpleFunctionParam,
+        SimpleFunctionParam, CtxFunctionImpl, CtxFunctionDefinition
     },
     lex::LexErrorKind,
     lhs_types::{Array, Map},

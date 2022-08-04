@@ -468,6 +468,115 @@ impl FunctionDefinition for SimpleFunctionDefinition {
     }
 }
 
+/// Context aware function API
+
+type CtxFunctionPtr =
+    for<'a> fn(FunctionArgs<'_, 'a>, Option<FunctionDefinitionContext>) -> Option<LhsValue<'a>>;
+
+/// Wrapper around a function pointer providing the runtime implementation.
+#[derive(Clone)]
+pub struct CtxFunctionImpl(CtxFunctionPtr);
+
+impl CtxFunctionImpl {
+    /// Creates a new wrapper around a function pointer.
+    pub fn new(func: CtxFunctionPtr) -> Self {
+        Self(func)
+    }
+
+    /// Calls the wrapped function pointer.
+    pub fn execute<'a>(
+        &self,
+        args: FunctionArgs<'_, 'a>,
+        ctx: Option<FunctionDefinitionContext>,
+    ) -> Option<LhsValue<'a>> {
+        (self.0)(args, ctx)
+    }
+}
+
+impl fmt::Debug for CtxFunctionImpl {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_tuple("CtxFunctionImpl")
+            .field(&(self.0 as *const ()))
+            .finish()
+    }
+}
+
+impl PartialEq for CtxFunctionImpl {
+    fn eq(&self, other: &CtxFunctionImpl) -> bool {
+        self.0 as *const () == other.0 as *const ()
+    }
+}
+
+impl Eq for CtxFunctionImpl {}
+
+/// Simple interface to define a function.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct CtxFunctionDefinition {
+    /// List of mandatory arguments.
+    pub params: Vec<SimpleFunctionParam>,
+    /// List of optional arguments that can be specified after manatory ones.
+    pub opt_params: Vec<SimpleFunctionOptParam>,
+    /// Function return type.
+    pub return_type: Type,
+    /// Actual implementation that will be called at runtime.
+    pub implementation: CtxFunctionImpl,
+}
+
+impl FunctionDefinition for CtxFunctionDefinition {
+    fn check_param(
+        &self,
+        params: &mut dyn ExactSizeIterator<Item = FunctionParam<'_>>,
+        next_param: &FunctionParam<'_>,
+        _: Option<&mut FunctionDefinitionContext>,
+    ) -> Result<(), FunctionParamError> {
+        let index = params.len();
+        if index < self.params.len() {
+            let param = &self.params[index];
+            next_param.expect_arg_kind(param.arg_kind)?;
+            next_param.expect_val_type(once(ExpectedType::Type(param.val_type.clone())))?;
+        } else if index < self.params.len() + self.opt_params.len() {
+            let opt_param = &self.opt_params[index - self.params.len()];
+            next_param.expect_arg_kind(opt_param.arg_kind)?;
+            next_param
+                .expect_val_type(once(ExpectedType::Type(opt_param.default_value.get_type())))?;
+        } else {
+            unreachable!();
+        }
+        Ok(())
+    }
+
+    fn return_type(
+        &self,
+        _: &mut dyn ExactSizeIterator<Item = FunctionParam<'_>>,
+        _: Option<&FunctionDefinitionContext>,
+    ) -> Type {
+        self.return_type.clone()
+    }
+
+    fn arg_count(&self) -> (usize, Option<usize>) {
+        (self.params.len(), Some(self.opt_params.len()))
+    }
+
+    fn compile<'s>(
+        &'s self,
+        _: &mut dyn ExactSizeIterator<Item = FunctionParam<'_>>,
+        ctx: Option<FunctionDefinitionContext>,
+    ) -> Box<dyn for<'a> Fn(FunctionArgs<'_, 'a>) -> Option<LhsValue<'a>> + Sync + Send + 's> {
+        Box::new(move |args| {
+            let opts_args = &self.opt_params[(args.len() - self.params.len())..];
+            self.implementation.execute(
+                &mut ExactSizeChain::new(
+                    args,
+                    opts_args
+                        .iter()
+                        .map(|opt_arg| Ok(opt_arg.default_value.to_owned())),
+                ),
+                ctx.clone(),
+            )
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
