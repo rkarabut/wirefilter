@@ -510,7 +510,7 @@ impl PartialEq for CtxFunctionImpl {
 impl Eq for CtxFunctionImpl {}
 
 /// Simple interface to define a function.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone)]
 pub struct CtxFunctionDefinition {
     /// List of mandatory arguments.
     pub params: Vec<SimpleFunctionParam>,
@@ -520,7 +520,17 @@ pub struct CtxFunctionDefinition {
     pub return_type: Type,
     /// Actual implementation that will be called at runtime.
     pub implementation: CtxFunctionImpl,
+    /// Alternative context
+    pub ctx: Option<FunctionDefinitionContext>,
 }
+
+impl PartialEq for CtxFunctionDefinition {
+    fn eq(&self, other: &Self) -> bool {
+        self.params == other.params && self.opt_params == other.opt_params && self.return_type == other.return_type && self.implementation == other.implementation
+    }
+}
+
+impl Eq for CtxFunctionDefinition {}
 
 impl FunctionDefinition for CtxFunctionDefinition {
     fn check_param(
@@ -560,7 +570,8 @@ impl FunctionDefinition for CtxFunctionDefinition {
     fn compile<'s>(
         &'s self,
         _: &mut dyn ExactSizeIterator<Item = FunctionParam<'_>>,
-        ctx: Option<FunctionDefinitionContext>,
+        // TODO no idea how ctx gets passed here at the moment, using self.ctx
+        _: Option<FunctionDefinitionContext>,
     ) -> Box<dyn for<'a> Fn(FunctionArgs<'_, 'a>) -> Option<LhsValue<'a>> + Sync + Send + 's> {
         Box::new(move |args| {
             let opts_args = &self.opt_params[(args.len() - self.params.len())..];
@@ -571,7 +582,7 @@ impl FunctionDefinition for CtxFunctionDefinition {
                         .iter()
                         .map(|opt_arg| Ok(opt_arg.default_value.to_owned())),
                 ),
-                ctx.clone(),
+                self.ctx.clone(),
             )
         })
     }
