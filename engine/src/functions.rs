@@ -471,7 +471,7 @@ impl FunctionDefinition for SimpleFunctionDefinition {
 /// Context aware function API
 
 type CtxFunctionPtr =
-    for<'a> fn(FunctionArgs<'_, 'a>, Option<FunctionDefinitionContext>) -> Option<LhsValue<'a>>;
+    for<'a> fn(FunctionArgs<'_, 'a>, FunctionDefinitionContext) -> Option<LhsValue<'a>>;
 
 /// Wrapper around a function pointer providing the runtime implementation.
 #[derive(Clone)]
@@ -487,7 +487,7 @@ impl CtxFunctionImpl {
     pub fn execute<'a>(
         &self,
         args: FunctionArgs<'_, 'a>,
-        ctx: Option<FunctionDefinitionContext>,
+        ctx: FunctionDefinitionContext,
     ) -> Option<LhsValue<'a>> {
         (self.0)(args, ctx)
     }
@@ -521,12 +521,15 @@ pub struct CtxFunctionDefinition {
     /// Actual implementation that will be called at runtime.
     pub implementation: CtxFunctionImpl,
     /// Alternative context
-    pub ctx: Option<FunctionDefinitionContext>,
+    pub ctx: FunctionDefinitionContext,
 }
 
 impl PartialEq for CtxFunctionDefinition {
     fn eq(&self, other: &Self) -> bool {
-        self.params == other.params && self.opt_params == other.opt_params && self.return_type == other.return_type && self.implementation == other.implementation
+        self.params == other.params
+            && self.opt_params == other.opt_params
+            && self.return_type == other.return_type
+            && self.implementation == other.implementation
     }
 }
 
