@@ -10,7 +10,7 @@ use crate::{
     lex::{expect, skip_space, span, Lex, LexErrorKind, LexResult, LexWith},
     list_matcher::ListMatcher,
     range_set::RangeSet,
-    rhs_types::{Bytes, ExplicitIpRange, HexString, ListName, Regex, U256Wrapper},
+    rhs_types::{Bytes, EthAbiToken, ExplicitIpRange, HexString, ListName, Regex, U256Wrapper},
     scheme::{Field, Identifier, List, Scheme},
     searcher::{EmptySearcher, TwoWaySearcher},
     strict_partial_ord::StrictPartialOrd,
@@ -318,6 +318,7 @@ impl<'s> ComparisonExpr<'s> {
                 (Type::Ip, ComparisonOp::In)
                 | (Type::Bytes, ComparisonOp::In)
                 | (Type::HexString, ComparisonOp::In)
+                | (Type::EthAbiToken, ComparisonOp::In)
                 | (Type::Int, ComparisonOp::In) => {
                     if expect(input, "$").is_ok() {
                         let (name, input) = ListName::lex(input)?;
@@ -347,6 +348,7 @@ impl<'s> ComparisonExpr<'s> {
                 (Type::Ip, ComparisonOp::Ordering(op))
                 | (Type::Bytes, ComparisonOp::Ordering(op))
                 | (Type::HexString, ComparisonOp::Ordering(op))
+                | (Type::EthAbiToken, ComparisonOp::Ordering(op))
                 | (Type::Int, ComparisonOp::Ordering(op)) => {
                     let (rhs, input) = RhsValue::lex_with(input, lhs_type)?;
                     (ComparisonOpExpr::Ordering { op, rhs }, input)
@@ -545,6 +547,14 @@ impl<'s> Expr<'s> for ComparisonExpr<'s> {
 
                     lhs.compile_with(compiler, false, move |x, _ctx| {
                         values.contains(cast_value!(x, U256))
+                    })
+                }
+                RhsValues::EthAbiToken(values) => {
+                    let values: IndexSet<Box<EthAbiToken>, FnvBuildHasher> =
+                        values.into_iter().map(Into::into).collect();
+
+                    lhs.compile_with(compiler, false, move |x, _ctx| {
+                        values.contains(cast_value!(x, EthAbiToken))
                     })
                 }
                 RhsValues::Bool(_) => unreachable!(),

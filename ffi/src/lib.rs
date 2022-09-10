@@ -34,6 +34,7 @@ pub enum CTypeTag {
     Bool,
     HexString,
     U256,
+    EthAbiToken,
     Array,
     Map,
 }
@@ -54,6 +55,7 @@ impl From<CType> for Type {
             CTypeTag::Bool => Type::Bool,
             CTypeTag::HexString => Type::HexString,
             CTypeTag::U256 => Type::U256,
+            CTypeTag::EthAbiToken => Type::EthAbiToken,
             CTypeTag::Array => Type::Array(ty.data.unwrap()),
             CTypeTag::Map => Type::Map(ty.data.unwrap()),
         }
@@ -85,6 +87,10 @@ impl From<Type> for CType {
             },
             Type::U256 => CType {
                 tag: CTypeTag::U256.into(),
+                data: None,
+            },
+            Type::EthAbiToken => CType {
+                tag: CTypeTag::EthAbiToken.into(),
                 data: None,
             },
             Type::Array(arr) => CType {

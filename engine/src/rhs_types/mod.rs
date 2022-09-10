@@ -1,6 +1,7 @@
 mod array;
 mod bool;
 mod bytes;
+mod ethabi_token;
 mod hexstring;
 mod int;
 mod ip;
@@ -13,6 +14,7 @@ pub use self::{
     array::UninhabitedArray,
     bool::UninhabitedBool,
     bytes::Bytes,
+    ethabi_token::{EthAbiToken, EthAbiTokenError},
     hexstring::HexString,
     int::IntRange,
     ip::{ExplicitIpRange, IpRange},

@@ -89,10 +89,10 @@ pub use self::{
     execution_context::{ExecutionContext, InvalidListMatcherError},
     filter::{CompiledExpr, CompiledOneExpr, CompiledValueExpr, CompiledVecExpr, Filter},
     functions::{
-        FunctionArgInvalidConstantError, FunctionArgKind, FunctionArgKindMismatchError,
-        FunctionArgs, FunctionDefinition, FunctionDefinitionContext, FunctionParam,
-        FunctionParamError, SimpleFunctionDefinition, SimpleFunctionImpl, SimpleFunctionOptParam,
-        SimpleFunctionParam, CtxFunctionImpl, CtxFunctionDefinition
+        CtxFunctionDefinition, CtxFunctionImpl, FunctionArgInvalidConstantError, FunctionArgKind,
+        FunctionArgKindMismatchError, FunctionArgs, FunctionDefinition, FunctionDefinitionContext,
+        FunctionParam, FunctionParamError, SimpleFunctionDefinition, SimpleFunctionImpl,
+        SimpleFunctionOptParam, SimpleFunctionParam,
     },
     lex::LexErrorKind,
     lhs_types::{Array, Map},
@@ -100,7 +100,7 @@ pub use self::{
         AlwaysList, AlwaysListMatcher, ListDefinition, ListMatcher, ListMatcherWrapper, NeverList,
         NeverListMatcher,
     },
-    rhs_types::{Bytes, HexString, Regex, RegexError, U256Wrapper as U256},
+    rhs_types::{Bytes, EthAbiToken, HexString, Regex, RegexError, U256Wrapper as U256},
     scheme::{
         Field, FieldIndex, FieldRedefinitionError, Function, FunctionRedefinitionError, Identifier,
         IdentifierRedefinitionError, List, ParseError, Scheme, SchemeMismatchError,
