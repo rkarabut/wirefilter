@@ -351,7 +351,7 @@ pub trait FunctionDefinition: Debug + Send + Sync {
 
 /// Simple function API
 
-type FunctionPtr = for<'a> fn(FunctionArgs<'_, 'a>) -> Option<LhsValue<'a>>;
+pub type FunctionPtr = for<'a> fn(FunctionArgs<'_, 'a>) -> Option<LhsValue<'a>>;
 
 /// Wrapper around a function pointer providing the runtime implementation.
 #[derive(Clone)]
@@ -470,7 +470,7 @@ impl FunctionDefinition for SimpleFunctionDefinition {
 
 /// Context aware function API
 
-type CtxFunctionPtr =
+pub type CtxFunctionPtr =
     for<'a> fn(FunctionArgs<'_, 'a>, FunctionDefinitionContext) -> Option<LhsValue<'a>>;
 
 /// Wrapper around a function pointer providing the runtime implementation.
