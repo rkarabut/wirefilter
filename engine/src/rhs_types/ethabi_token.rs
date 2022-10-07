@@ -72,7 +72,6 @@ impl std::cmp::PartialOrd for EthAbiToken {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         use ethabi::Token::*;
 
-        // TODO comparison only works for simple single value types
         match (self.value(), other.value()) {
             (Uint(a), Uint(b)) => a.partial_cmp(&b),
             // signed 256-bit ints aren't implemented correctly
@@ -80,6 +79,19 @@ impl std::cmp::PartialOrd for EthAbiToken {
             (String(a), String(b)) => a.partial_cmp(b),
             (Bytes(a), Bytes(b)) => a.partial_cmp(b),
             (Address(a), Address(b)) => a.partial_cmp(b),
+            // TODO find a better way?
+            (Tuple(a), Tuple(b)) => a
+                .iter()
+                .map(|v| EthAbiToken::new(v.clone()))
+                .partial_cmp(b.iter().map(|v| EthAbiToken::new(v.clone()))),
+            (Array(a), Array(b)) => a
+                .iter()
+                .map(|v| EthAbiToken::new(v.clone()))
+                .partial_cmp(b.iter().map(|v| EthAbiToken::new(v.clone()))),
+            (FixedArray(a), FixedArray(b)) => a
+                .iter()
+                .map(|v| EthAbiToken::new(v.clone()))
+                .partial_cmp(b.iter().map(|v| EthAbiToken::new(v.clone()))),
             _ => None,
         }
     }

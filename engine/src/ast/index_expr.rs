@@ -385,10 +385,10 @@ impl<'s> GetType for IndexExpr<'s> {
         let mut ty = self.lhs.get_type();
         for index in &self.indexes {
             ty = match (ty, index) {
-                (Type::Array(idx), FieldIndex::ArrayIndex(_)) => (*idx),
-                (Type::Array(idx), FieldIndex::MapEach) => (*idx),
-                (Type::Map(child), FieldIndex::MapKey(_)) => (*child),
-                (Type::Map(child), FieldIndex::MapEach) => (*child),
+                (Type::Array(idx), FieldIndex::ArrayIndex(_)) => *idx,
+                (Type::Array(idx), FieldIndex::MapEach) => *idx,
+                (Type::Map(child), FieldIndex::MapKey(_)) => *child,
+                (Type::Map(child), FieldIndex::MapEach) => *child,
                 (_, _) => unreachable!(),
             }
         }
