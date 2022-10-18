@@ -80,6 +80,9 @@ impl std::cmp::PartialOrd for EthAbiToken {
             (Int(_), Int(_)) => None,
             (String(a), String(b)) => a.partial_cmp(b),
             (Bytes(a), Bytes(b)) => a.partial_cmp(b),
+            (FixedBytes(a), FixedBytes(b)) => a.partial_cmp(b),
+            (Bytes(a), FixedBytes(b)) => a.partial_cmp(b),
+            (FixedBytes(a), Bytes(b)) => a.partial_cmp(b),
             (Address(a), Address(b)) => a.partial_cmp(b),
             // TODO find a better way?
             (Tuple(a), Tuple(b)) => a
@@ -99,16 +102,16 @@ impl std::cmp::PartialOrd for EthAbiToken {
                 EthAbiToken::new(Bytes(a.as_bytes().to_vec())).partial_cmp(other)
             }
             (Bytes(_), Address(_)) => other.partial_cmp(self),
-            // turn into bytes to uint comparison
-            (Address(a), Uint(_)) => {
-                EthAbiToken::new(Bytes(a.as_bytes().to_vec())).partial_cmp(other)
-            }
+            // turn into uint to uint comparison
+            (Address(a), Uint(b)) => U256::from_big_endian(a.as_bytes()).partial_cmp(b),
             (Uint(_), Address(_)) => other.partial_cmp(self),
-            // turn into bytes to bytes comparison
-            (Uint(a), Bytes(_)) => {
-                let mut buf = [0u8; 32];
-                a.to_big_endian(&mut buf);
-                EthAbiToken::new(Bytes(buf.to_vec())).partial_cmp(other)
+            // turn into uint to uint comparison
+            (Uint(a), Bytes(b)) => {
+                if b.len() > 32 {
+                    Some(std::cmp::Ordering::Less)
+                } else {
+                    a.partial_cmp(&U256::from_big_endian(&b))
+                }
             }
             (Bytes(_), Uint(_)) => other.partial_cmp(self),
             _ => None,
