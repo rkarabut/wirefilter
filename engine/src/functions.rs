@@ -347,6 +347,9 @@ pub trait FunctionDefinition: Debug + Send + Sync {
         params: &mut dyn ExactSizeIterator<Item = FunctionParam<'_>>,
         ctx: Option<FunctionDefinitionContext>,
     ) -> Box<dyn for<'a> Fn(FunctionArgs<'_, 'a>) -> Option<LhsValue<'a>> + Sync + Send + 's>;
+
+    /// Get params
+    fn params(&self) -> Vec<(FunctionArgKind, Type)>;
 }
 
 /// Simple function API
@@ -465,6 +468,13 @@ impl FunctionDefinition for SimpleFunctionDefinition {
                     .map(|opt_arg| Ok(opt_arg.default_value.to_owned())),
             ))
         })
+    }
+
+    fn params(&self) -> Vec<(FunctionArgKind, Type)> {
+        self.params
+            .iter()
+            .map(|p| (p.arg_kind, p.val_type.clone()))
+            .collect()
     }
 }
 
@@ -588,6 +598,13 @@ impl FunctionDefinition for CtxFunctionDefinition {
                 self.ctx.clone(),
             )
         })
+    }
+
+    fn params(&self) -> Vec<(FunctionArgKind, Type)> {
+        self.params
+            .iter()
+            .map(|p| (p.arg_kind, p.val_type.clone()))
+            .collect()
     }
 }
 

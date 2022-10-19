@@ -704,6 +704,10 @@ mod tests {
                 Some(LhsValue::Array(output))
             })
         }
+
+        fn params(&self) -> Vec<(FunctionArgKind, Type)> {
+            vec![]
+        }
     }
 
     fn len_function<'a>(args: FunctionArgs<'_, 'a>) -> Option<LhsValue<'a>> {

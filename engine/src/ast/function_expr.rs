@@ -11,8 +11,8 @@ use crate::{
     compiler::Compiler,
     filter::{CompiledExpr, CompiledValueExpr},
     functions::{
-        ExactSizeChain, FunctionDefinition, FunctionDefinitionContext, FunctionParam,
-        FunctionParamError,
+        ExactSizeChain, FunctionArgKind, FunctionDefinition, FunctionDefinitionContext,
+        FunctionParam, FunctionParamError,
     },
     lex::{expect, skip_space, span, Lex, LexError, LexErrorKind, LexResult, LexWith},
     lhs_types::Array,
@@ -110,6 +110,21 @@ impl<'s> FunctionCallArgExpr<'s> {
                 op: ComparisonOpExpr::IsTrue,
             })) => FunctionCallArgExpr::IndexExpr(lhs),
             _ => self,
+        }
+    }
+
+    // try to get the correct type if the literal is specified first
+    pub(crate) fn lex_with_hint<'i>(
+        input: &'i str,
+        scheme: &'s Scheme,
+        kind: FunctionArgKind,
+        typ: Type,
+    ) -> LexResult<'i, Self> {
+        if let FunctionArgKind::Literal = kind {
+            RhsValue::lex_with(input, typ)
+                .map(|(lit, input)| (FunctionCallArgExpr::Literal(lit), input))
+        } else {
+            Self::lex_with(input, scheme)
         }
     }
 }
@@ -340,6 +355,8 @@ impl<'s> FunctionCallExpr<'s> {
 
         let mut ctx = definition.context();
 
+        let mut params = definition.params().into_iter();
+
         while let Some(c) = input.chars().next() {
             if c == ')' {
                 break;
@@ -352,7 +369,10 @@ impl<'s> FunctionCallExpr<'s> {
 
             input = skip_space(input);
 
-            let (arg, rest) = FunctionCallArgExpr::lex_with(input, scheme)?;
+            let (arg, rest) = match params.next() {
+                Some((kind, typ)) => FunctionCallArgExpr::lex_with_hint(input, scheme, kind, typ)?,
+                None => FunctionCallArgExpr::lex_with(input, scheme)?,
+            };
 
             // Mapping is only accepted for the first argument
             // of a function call for code simplicity
