@@ -152,7 +152,7 @@ impl<'a> FunctionParam<'a> {
         expected_arg_kind: FunctionArgKind,
     ) -> Result<(), FunctionParamError> {
         let kind = self.into();
-        if kind == expected_arg_kind {
+        if kind == expected_arg_kind || expected_arg_kind == FunctionArgKind::Any {
             Ok(())
         } else {
             Err(FunctionParamError::KindMismatch(
