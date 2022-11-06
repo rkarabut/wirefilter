@@ -11,8 +11,8 @@ use crate::{
     compiler::Compiler,
     filter::{CompiledExpr, CompiledValueExpr},
     functions::{
-        ExactSizeChain, FunctionArgKind, FunctionDefinition, FunctionDefinitionContext,
-        FunctionParam, FunctionParamError,
+        ExactSizeChain, FunctionArgKind, FunctionArgKindMismatchError, FunctionDefinition,
+        FunctionDefinitionContext, FunctionParam, FunctionParamError,
     },
     lex::{expect, skip_space, span, Lex, LexError, LexErrorKind, LexResult, LexWith},
     lhs_types::Array,
@@ -120,11 +120,30 @@ impl<'s> FunctionCallArgExpr<'s> {
         kind: FunctionArgKind,
         typ: Type,
     ) -> LexResult<'i, Self> {
-        if let FunctionArgKind::Literal = kind {
-            RhsValue::lex_with(input, typ)
-                .map(|(lit, input)| (FunctionCallArgExpr::Literal(lit), input))
-        } else {
-            Self::lex_with(input, scheme)
+        match kind {
+            FunctionArgKind::Literal => RhsValue::lex_with(input, typ)
+                .map(|(lit, input)| (FunctionCallArgExpr::Literal(lit), input)),
+            FunctionArgKind::Any => {
+                match Self::lex_with(input, scheme) {
+                    // if unable to parse the argument as a field, fall back to literal parsing
+                    Err((LexErrorKind::EOF, input))
+                    | Err((
+                        LexErrorKind::InvalidArgumentKind {
+                            index: 0,
+                            mismatch:
+                                FunctionArgKindMismatchError {
+                                    expected: FunctionArgKind::Field,
+                                    actual: FunctionArgKind::Literal,
+                                },
+                        },
+                        input,
+                    )) => RhsValue::lex_with(input, typ)
+                        .map(|(lit, input)| (FunctionCallArgExpr::Literal(lit), input)),
+                    Err(other) => Err(other),
+                    Ok(res) => Ok(res),
+                }
+            }
+            FunctionArgKind::Field => Self::lex_with(input, scheme),
         }
     }
 }
@@ -155,8 +174,16 @@ impl<'i, 's> LexWith<'i, &'s Scheme> for FunctionCallArgExpr<'s> {
             let c2 = chars.next();
             let c3 = chars.next();
             if c == '"' {
-                return RhsValue::lex_with(input, Type::Bytes)
-                    .map(|(literal, input)| (FunctionCallArgExpr::Literal(literal), input));
+                return Err((
+                    LexErrorKind::InvalidArgumentKind {
+                        index: 0,
+                        mismatch: FunctionArgKindMismatchError {
+                            expected: FunctionArgKind::Field,
+                            actual: FunctionArgKind::Literal,
+                        },
+                    },
+                    input,
+                ));
             } else if c == '(' || UnaryOp::lex(input).is_ok() {
                 return SimpleExpr::lex_with(input, scheme)
                     .map(|(lhs, input)| (FunctionCallArgExpr::SimpleExpr(lhs), input));
@@ -198,19 +225,7 @@ impl<'i, 's> LexWith<'i, &'s Scheme> for FunctionCallArgExpr<'s> {
             }
         }
 
-        RhsValue::lex_with(input, Type::Ip)
-            .map(|(literal, input)| (FunctionCallArgExpr::Literal(literal), input))
-            .or_else(|_| {
-                RhsValue::lex_with(input, Type::Int)
-                    .map(|(literal, input)| (FunctionCallArgExpr::Literal(literal), input))
-            })
-            // try to parse Bytes after Int because digit literals < 255 are wrongly
-            // interpreted as Bytes
-            .or_else(|_| {
-                RhsValue::lex_with(input, Type::Bytes)
-                    .map(|(literal, input)| (FunctionCallArgExpr::Literal(literal), input))
-            })
-            .map_err(|_| (LexErrorKind::EOF, _initial_input))
+        Err((LexErrorKind::EOF, _initial_input))
     }
 }
 

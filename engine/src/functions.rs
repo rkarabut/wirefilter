@@ -83,6 +83,8 @@ pub enum FunctionArgKind {
     Literal,
     /// Allow only field as argument.
     Field,
+    /// Allow any kind argument.
+    Any,
 }
 
 /// An error that occurs on a kind mismatch.
