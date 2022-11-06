@@ -705,8 +705,11 @@ mod tests {
             })
         }
 
-        fn params(&self) -> Vec<(FunctionArgKind, Type)> {
-            vec![]
+        fn params(&self) -> Vec<(FunctionArgKind, ExpectedType)> {
+            vec![
+                (FunctionArgKind::Field, ExpectedType::Array),
+                (FunctionArgKind::Field, ExpectedType::Array),
+            ]
         }
     }
 

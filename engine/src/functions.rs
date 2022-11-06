@@ -351,7 +351,7 @@ pub trait FunctionDefinition: Debug + Send + Sync {
     ) -> Box<dyn for<'a> Fn(FunctionArgs<'_, 'a>) -> Option<LhsValue<'a>> + Sync + Send + 's>;
 
     /// Get params
-    fn params(&self) -> Vec<(FunctionArgKind, Type)>;
+    fn params(&self) -> Vec<(FunctionArgKind, ExpectedType)>;
 }
 
 /// Simple function API
@@ -472,11 +472,20 @@ impl FunctionDefinition for SimpleFunctionDefinition {
         })
     }
 
-    fn params(&self) -> Vec<(FunctionArgKind, Type)> {
-        self.params
+    fn params(&self) -> Vec<(FunctionArgKind, ExpectedType)> {
+        let mut res: Vec<_> = self
+            .params
             .iter()
-            .map(|p| (p.arg_kind, p.val_type.clone()))
-            .collect()
+            .map(|p| (p.arg_kind, ExpectedType::Type(p.val_type.clone())))
+            .collect();
+
+        res.extend(
+            self.opt_params
+                .iter()
+                .map(|p| (p.arg_kind, ExpectedType::Type(p.default_value.get_type()))),
+        );
+
+        res
     }
 }
 
@@ -602,11 +611,20 @@ impl FunctionDefinition for CtxFunctionDefinition {
         })
     }
 
-    fn params(&self) -> Vec<(FunctionArgKind, Type)> {
-        self.params
+    fn params(&self) -> Vec<(FunctionArgKind, ExpectedType)> {
+        let mut res: Vec<_> = self
+            .params
             .iter()
-            .map(|p| (p.arg_kind, p.val_type.clone()))
-            .collect()
+            .map(|p| (p.arg_kind, ExpectedType::Type(p.val_type.clone())))
+            .collect();
+
+        res.extend(
+            self.opt_params
+                .iter()
+                .map(|p| (p.arg_kind, ExpectedType::Type(p.default_value.get_type()))),
+        );
+
+        res
     }
 }
 

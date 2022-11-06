@@ -2,7 +2,7 @@ use crate::{
     functions::{FunctionArgInvalidConstantError, FunctionArgKindMismatchError},
     rhs_types::RegexError,
     scheme::{IndexAccessError, UnknownFieldError, UnknownFunctionError},
-    types::{Type, TypeMismatchError},
+    types::{ExpectedType, Type, TypeMismatchError},
 };
 use cidr::NetworkParseError;
 use std::num::ParseIntError;
@@ -157,6 +157,10 @@ pub enum LexErrorKind {
         /// Name of the list
         name: String,
     },
+
+    /// Literal expects concrete type only
+    #[error("literals can only contain concrete types, provided type: {wrong_type:?}")]
+    LiteralExpectsConcreteType { wrong_type: ExpectedType },
 }
 
 pub type LexError<'i> = (LexErrorKind, &'i str);

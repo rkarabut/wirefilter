@@ -17,7 +17,7 @@ use crate::{
     lex::{expect, skip_space, span, Lex, LexError, LexErrorKind, LexResult, LexWith},
     lhs_types::Array,
     scheme::{Function, Scheme},
-    types::{GetType, LhsValue, RhsValue, Type},
+    types::{ExpectedType, GetType, LhsValue, RhsValue, Type},
 };
 use derivative::Derivative;
 use serde::Serialize;
@@ -118,11 +118,21 @@ impl<'s> FunctionCallArgExpr<'s> {
         input: &'i str,
         scheme: &'s Scheme,
         kind: FunctionArgKind,
-        typ: Type,
+        typ: ExpectedType,
     ) -> LexResult<'i, Self> {
         match kind {
-            FunctionArgKind::Literal => RhsValue::lex_with(input, typ)
-                .map(|(lit, input)| (FunctionCallArgExpr::Literal(lit), input)),
+            // literals currently only work with concrete types
+            FunctionArgKind::Literal => {
+                if let ExpectedType::Type(concrete_type) = typ {
+                    RhsValue::lex_with(input, concrete_type)
+                        .map(|(lit, input)| (FunctionCallArgExpr::Literal(lit), input))
+                } else {
+                    Err((
+                        LexErrorKind::LiteralExpectsConcreteType { wrong_type: typ },
+                        input,
+                    ))
+                }
+            }
             FunctionArgKind::Any => {
                 match Self::lex_with(input, scheme) {
                     // if unable to parse the argument as a field, fall back to literal parsing
@@ -137,8 +147,18 @@ impl<'s> FunctionCallArgExpr<'s> {
                                 },
                         },
                         input,
-                    )) => RhsValue::lex_with(input, typ)
-                        .map(|(lit, input)| (FunctionCallArgExpr::Literal(lit), input)),
+                    )) => {
+                        // literals currently only work with concrete types
+                        if let ExpectedType::Type(concrete_type) = typ {
+                            RhsValue::lex_with(input, concrete_type)
+                                .map(|(lit, input)| (FunctionCallArgExpr::Literal(lit), input))
+                        } else {
+                            Err((
+                                LexErrorKind::LiteralExpectsConcreteType { wrong_type: typ },
+                                input,
+                            ))
+                        }
+                    }
                     Err(other) => Err(other),
                     Ok(res) => Ok(res),
                 }
@@ -384,10 +404,10 @@ impl<'s> FunctionCallExpr<'s> {
 
             input = skip_space(input);
 
-            let (arg, rest) = match params.next() {
-                Some((kind, typ)) => FunctionCallArgExpr::lex_with_hint(input, scheme, kind, typ)?,
-                None => FunctionCallArgExpr::lex_with(input, scheme)?,
-            };
+            let (arg, rest) = params
+                .next()
+                .map(|(kind, typ)| FunctionCallArgExpr::lex_with_hint(input, scheme, kind, typ))
+                .ok_or_else(|| invalid_args_count(definition, input))??;
 
             // Mapping is only accepted for the first argument
             // of a function call for code simplicity
@@ -746,14 +766,8 @@ mod tests {
 
         assert_err!(
             FunctionCallExpr::lex_with("echo ( http.host , http.host );", &SCHEME),
-            LexErrorKind::InvalidArgumentKind {
-                index: 1,
-                mismatch: FunctionArgKindMismatchError {
-                    actual: FunctionArgKind::Field,
-                    expected: FunctionArgKind::Literal,
-                }
-            },
-            "http.host"
+            LexErrorKind::ExpectedName("digit"),
+            "http.host );"
         );
 
         let expr = assert_ok!(
@@ -1152,19 +1166,13 @@ mod tests {
                     expected: FunctionArgKind::Field,
                 }
             },
-            "\"test\""
+            "\"test\" );"
         );
 
         assert_err!(
             FunctionCallExpr::lex_with("echo ( 10 );", &SCHEME),
-            LexErrorKind::InvalidArgumentKind {
-                index: 0,
-                mismatch: FunctionArgKindMismatchError {
-                    actual: FunctionArgKind::Literal,
-                    expected: FunctionArgKind::Field,
-                }
-            },
-            "10"
+            LexErrorKind::EOF,
+            "10 );"
         );
 
         assert_err!(
@@ -1238,8 +1246,8 @@ mod tests {
 
         assert_err!(
             FunctionCallExpr::lex_with("echo ( http.host, http.headers[*] );", &SCHEME),
-            LexErrorKind::InvalidMapEachAccess,
-            "http.headers[*]"
+            LexErrorKind::ExpectedName("digit"),
+            "http.headers[*] );"
         );
     }
 }
