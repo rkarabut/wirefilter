@@ -352,6 +352,11 @@ pub trait FunctionDefinition: Debug + Send + Sync {
 
     /// Get params
     fn params(&self) -> Vec<(FunctionArgKind, ExpectedType)>;
+
+    /// Get the possible variadic param
+    fn variadic_param(&self) -> Option<(FunctionArgKind, ExpectedType)> {
+        None
+    }
 }
 
 /// Simple function API
@@ -486,6 +491,78 @@ impl FunctionDefinition for SimpleFunctionDefinition {
         );
 
         res
+    }
+}
+
+/// A function with possible variadic arguments.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct VarArgsFunctionDefinition {
+    /// List of mandatory arguments.
+    pub params: Vec<SimpleFunctionParam>,
+    /// The variadic argument.
+    pub variadic_param: Option<SimpleFunctionParam>,
+    /// Function return type.
+    pub return_type: Type,
+    /// Actual implementation that will be called at runtime.
+    pub implementation: SimpleFunctionImpl,
+}
+
+impl FunctionDefinition for VarArgsFunctionDefinition {
+    fn check_param(
+        &self,
+        params: &mut dyn ExactSizeIterator<Item = FunctionParam<'_>>,
+        next_param: &FunctionParam<'_>,
+        _: Option<&mut FunctionDefinitionContext>,
+    ) -> Result<(), FunctionParamError> {
+        let index = params.len();
+        if index < self.params.len() {
+            let param = &self.params[index];
+            next_param.expect_arg_kind(param.arg_kind)?;
+            next_param.expect_val_type(once(ExpectedType::Type(param.val_type.clone())))?;
+        } else if let Some(param) = &self.variadic_param {
+            next_param.expect_arg_kind(param.arg_kind)?;
+            next_param.expect_val_type(once(ExpectedType::Type(param.val_type.clone())))?;
+        } else {
+            unreachable!();
+        }
+        Ok(())
+    }
+
+    fn return_type(
+        &self,
+        _: &mut dyn ExactSizeIterator<Item = FunctionParam<'_>>,
+        _: Option<&FunctionDefinitionContext>,
+    ) -> Type {
+        self.return_type.clone()
+    }
+
+    fn arg_count(&self) -> (usize, Option<usize>) {
+        (self.params.len(), None)
+    }
+
+    fn compile<'s>(
+        &'s self,
+        _: &mut dyn ExactSizeIterator<Item = FunctionParam<'_>>,
+        _: Option<FunctionDefinitionContext>,
+    ) -> Box<dyn for<'a> Fn(FunctionArgs<'_, 'a>) -> Option<LhsValue<'a>> + Sync + Send + 's> {
+        Box::new(move |args| {
+            let tmp: Vec<Result<LhsValue<'_>, Type>> = vec![];
+            self.implementation
+                .execute(&mut ExactSizeChain::new(args, tmp.into_iter()))
+        })
+    }
+
+    fn params(&self) -> Vec<(FunctionArgKind, ExpectedType)> {
+        self.params
+            .iter()
+            .map(|p| (p.arg_kind, ExpectedType::Type(p.val_type.clone())))
+            .collect()
+    }
+
+    fn variadic_param(&self) -> Option<(FunctionArgKind, ExpectedType)> {
+        self.variadic_param
+            .as_ref()
+            .map(|p| (p.arg_kind, ExpectedType::Type(p.val_type.clone())))
     }
 }
 

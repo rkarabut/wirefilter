@@ -391,6 +391,7 @@ impl<'s> FunctionCallExpr<'s> {
         let mut ctx = definition.context();
 
         let mut params = definition.params().into_iter();
+        let variadic_param = definition.variadic_param();
 
         while let Some(c) = input.chars().next() {
             if c == ')' {
@@ -406,6 +407,7 @@ impl<'s> FunctionCallExpr<'s> {
 
             let (arg, rest) = params
                 .next()
+                .map_or_else(|| variadic_param.clone(), |p| Some(p))
                 .map(|(kind, typ)| FunctionCallArgExpr::lex_with_hint(input, scheme, kind, typ))
                 .ok_or_else(|| invalid_args_count(definition, input))??;
 
@@ -419,6 +421,7 @@ impl<'s> FunctionCallExpr<'s> {
 
             if optional_arg_count.is_some()
                 && index >= (mandatory_arg_count + optional_arg_count.unwrap())
+                && variadic_param.is_none()
             {
                 return Err(invalid_args_count(definition, input));
             }

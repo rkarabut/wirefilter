@@ -93,6 +93,7 @@ pub use self::{
         FunctionArgKind, FunctionArgKindMismatchError, FunctionArgs, FunctionDefinition,
         FunctionDefinitionContext, FunctionParam, FunctionParamError, FunctionPtr,
         SimpleFunctionDefinition, SimpleFunctionImpl, SimpleFunctionOptParam, SimpleFunctionParam,
+        VarArgsFunctionDefinition,
     },
     lex::LexErrorKind,
     lhs_types::{Array, Map},
