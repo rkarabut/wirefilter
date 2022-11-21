@@ -136,7 +136,7 @@ impl<'s> FunctionCallArgExpr<'s> {
             FunctionArgKind::Any => {
                 match Self::lex_with(input, scheme) {
                     // if unable to parse the argument as a field, fall back to literal parsing
-                    Err((LexErrorKind::EOF, input))
+                    Err((LexErrorKind::EOF, _))
                     | Err((
                         LexErrorKind::InvalidArgumentKind {
                             index: 0,
@@ -146,8 +146,9 @@ impl<'s> FunctionCallArgExpr<'s> {
                                     actual: FunctionArgKind::Literal,
                                 },
                         },
-                        input,
-                    )) => {
+                        _,
+                    ))
+                    | Err((LexErrorKind::UnknownIdentifier, _)) => {
                         // literals currently only work with concrete types
                         if let ExpectedType::Type(concrete_type) = typ {
                             RhsValue::lex_with(input, concrete_type)
@@ -227,21 +228,6 @@ impl<'i, 's> LexWith<'i, &'s Scheme> for FunctionCallArgExpr<'s> {
                 } else {
                     return Ok((FunctionCallArgExpr::IndexExpr(lhs), input));
                 }
-            }
-        }
-
-        // Fallback to blind parsing next argument
-        if let Ok((lhs, input)) = IndexExpr::lex_with(input, scheme) {
-            let lookahead = skip_space(input);
-            if ComparisonOp::lex(lookahead).is_ok() {
-                return ComparisonExpr::lex_with_lhs(input, scheme, lhs).map(|(op, input)| {
-                    (
-                        FunctionCallArgExpr::SimpleExpr(SimpleExpr::Comparison(op)),
-                        input,
-                    )
-                });
-            } else {
-                return Ok((FunctionCallArgExpr::IndexExpr(lhs), input));
             }
         }
 
