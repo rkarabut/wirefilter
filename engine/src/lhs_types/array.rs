@@ -113,7 +113,8 @@ impl<'a> Array<'a> {
         Ok(())
     }
 
-    pub(crate) fn as_ref(&'a self) -> Array<'a> {
+    /// Access the array as a reference
+    pub fn as_ref(&'a self) -> Array<'a> {
         Array {
             val_type: match self.val_type {
                 Cow::Owned(ref ty) => Cow::Borrowed(ty),
