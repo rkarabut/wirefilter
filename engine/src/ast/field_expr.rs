@@ -391,12 +391,12 @@ impl<'s> ComparisonExpr<'s> {
 impl<'s> Expr<'s> for ComparisonExpr<'s> {
     #[inline]
     fn walk<V: Visitor<'s>>(&self, visitor: &mut V) {
-        visitor.visit_index_expr(&self.lhs.index_expr())
+        visitor.visit_index_expr(self.lhs.index_expr())
     }
 
     #[inline]
     fn walk_mut<V: VisitorMut<'s>>(&mut self, visitor: &mut V) {
-        visitor.visit_index_expr(&mut self.lhs.index_expr_mut())
+        visitor.visit_index_expr(self.lhs.index_expr_mut())
     }
 
     fn compile_with_compiler<U: 's, C: Compiler<'s, U> + 's>(
@@ -1034,7 +1034,7 @@ mod tests {
                         indexes: vec![],
                     },
                     op: BitwiseOpExpr::Int {
-                        op: BitwiseOp::BitwiseAnd,
+                        op: BitwiseOp::And,
                         rhs: 1i32,
                     }
                 }),
@@ -1050,7 +1050,7 @@ mod tests {
             {
                 "lhs": {
                     "lhs": "tcp.port",
-                    "op": "BitwiseAnd",
+                    "op": "And",
                     "rhs": 1,
                 },
                 "op": "NotEqual",

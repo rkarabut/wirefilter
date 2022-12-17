@@ -1,6 +1,6 @@
 use crate::{
     ComparisonExpr, CompiledExpr, CompiledValueExpr, Expr, FunctionCallArgExpr, FunctionCallExpr,
-    IndexExpr, LogicalExpr, SimpleExpr, ValueExpr, ValueExprWrapper,
+    IndexExpr, LogicalExpr, SimpleExpr, ValueExpr,
 };
 
 /// Trait used to drive the compilation of a [`FilterAst`] into a [`Filter`].

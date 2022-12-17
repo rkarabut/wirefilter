@@ -60,6 +60,7 @@ macro_rules! parse_range {
     };
 }
 
+#[allow(dead_code)]
 #[pest_consume::parser]
 impl Parser {
     fn var(node: Node) -> ParseResult<ast::Var> {

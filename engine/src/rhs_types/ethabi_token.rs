@@ -40,8 +40,8 @@ impl EthAbiToken {
     /// Parses the token from a string.
     pub fn parse(input: &str) -> Result<Self, EthAbiTokenError> {
         let (ethabi_type, ethabi_value) = input
-            .split_once(" ")
-            .ok_or_else(|| EthAbiTokenError::NoSeparatorFound)?;
+            .split_once(' ')
+            .ok_or(EthAbiTokenError::NoSeparatorFound)?;
 
         let param_type = ethabi::param_type::Reader::read(ethabi_type)
             .map_err(|e| EthAbiTokenError::ParseType(e.to_string()))?;
@@ -61,6 +61,7 @@ impl EthAbiToken {
 
 impl Eq for EthAbiToken {}
 
+#[allow(clippy::derive_hash_xor_eq)]
 impl Hash for EthAbiToken {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // hash on representation, seems to be the easiest way
@@ -75,7 +76,7 @@ impl std::cmp::PartialOrd for EthAbiToken {
         use ethabi::Token::*;
 
         match (self.value(), other.value()) {
-            (Uint(a), Uint(b)) => a.partial_cmp(&b),
+            (Uint(a), Uint(b)) => a.partial_cmp(b),
             // signed 256-bit ints aren't implemented correctly
             (Int(_), Int(_)) => None,
             (String(a), String(b)) => a.partial_cmp(b),
@@ -110,7 +111,7 @@ impl std::cmp::PartialOrd for EthAbiToken {
                 if b.len() > 32 {
                     Some(std::cmp::Ordering::Less)
                 } else {
-                    a.partial_cmp(&U256::from_big_endian(&b))
+                    a.partial_cmp(&U256::from_big_endian(b))
                 }
             }
             (Bytes(_), Uint(_)) => other.partial_cmp(self),
@@ -119,7 +120,7 @@ impl std::cmp::PartialOrd for EthAbiToken {
     }
 }
 
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, Eq, PartialEq, Error)]
 pub enum EthAbiTokenError {
     #[error("no double quote found, ethabi value should be put in quotes")]
     NoDoubleQuoteFound,
@@ -137,7 +138,7 @@ pub enum EthAbiTokenError {
 
 fn lex_digits(input: &str) -> LexResult<'_, &str> {
     // Lex any supported digits (up to radix 16) for better error locations.
-    take_while(input, "digit", |c| c.is_digit(16))
+    take_while(input, "digit", |c| c.is_ascii_hexdigit())
 }
 
 impl<'i> Lex<'i> for EthAbiToken {

@@ -7,7 +7,7 @@ use std::{
     str::FromStr,
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Var<'i>(pub Cow<'i, str>);
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ pub enum Rhs<'i> {
     Regex(Regex),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum BinOp {
     Eq,
     NotEq,

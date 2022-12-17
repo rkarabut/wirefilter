@@ -168,7 +168,7 @@ impl<'s> IndexExpr<'s> {
                     CompiledOneExpr::new(move |ctx| {
                         index_access_one!(
                             indexes,
-                            (&call.execute(ctx)).as_ref().ok(),
+                            call.execute(ctx).as_ref().ok(),
                             default,
                             ctx,
                             func
@@ -208,7 +208,7 @@ impl<'s> IndexExpr<'s> {
             LhsFieldExpr::FunctionCallExpr(call) => {
                 let call = compiler.compile_function_call_expr(call);
                 CompiledVecExpr::new(move |ctx| {
-                    index_access_vec!(indexes, (&call.execute(ctx)).as_ref().ok(), ctx, func)
+                    index_access_vec!(indexes, call.execute(ctx).as_ref().ok(), ctx, func)
                 })
             }
             LhsFieldExpr::Field(f) => CompiledVecExpr::new(move |ctx| {

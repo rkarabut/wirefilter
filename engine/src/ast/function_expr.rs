@@ -5,7 +5,7 @@ use super::{
 use crate::{
     ast::{
         bitwise_expr::BitwiseExpr,
-        field_expr::{ComparisonExpr, ComparisonOp, ComparisonOpExpr},
+        field_expr::{ComparisonExpr, ComparisonOp},
         index_expr::IndexExpr,
         simple_expr::{SimpleExpr, UnaryOp},
         value_expr_wrapper::ValueExprWrapper,
@@ -320,7 +320,7 @@ impl<'s> ValueExpr<'s> for FunctionCallExpr<'s> {
         let map_each_count = args.get(0).map_or(0, |arg| arg.map_each_count());
         let call = function
             .as_definition()
-            .compile(&mut (&args).iter().map(|arg| arg.into()), context);
+            .compile(&mut args.iter().map(|arg| arg.into()), context);
         let args = args
             .into_iter()
             .map(|arg| compiler.compile_function_call_arg_expr(arg))
@@ -362,10 +362,9 @@ impl<'s> FunctionCallExpr<'s> {
         args: Vec<FunctionCallArgExpr<'s>>,
         context: Option<FunctionDefinitionContext>,
     ) -> Self {
-        let return_type = function.as_definition().return_type(
-            &mut (&args).iter().map(|arg| arg.into()),
-            (&context).as_ref(),
-        );
+        let return_type = function
+            .as_definition()
+            .return_type(&mut args.iter().map(|arg| arg.into()), context.as_ref());
         Self {
             function,
             args,
@@ -412,7 +411,7 @@ impl<'s> FunctionCallExpr<'s> {
 
             let (arg, rest) = params
                 .next()
-                .map_or_else(|| variadic_param.clone(), |p| Some(p))
+                .map_or_else(|| variadic_param.clone(), Some)
                 .map(|(kind, typ)| FunctionCallArgExpr::lex_with_hint(input, scheme, kind, typ))
                 .ok_or_else(|| invalid_args_count(definition, input))??;
 
@@ -433,7 +432,7 @@ impl<'s> FunctionCallExpr<'s> {
 
             definition
                 .check_param(
-                    &mut (&args).iter().map(|arg| arg.into()),
+                    &mut args.iter().map(|arg| arg.into()),
                     &next_param,
                     ctx.as_mut(),
                 )

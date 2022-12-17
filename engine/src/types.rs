@@ -76,7 +76,7 @@ impl From<ExpectedType> for ExpectedTypeList {
 }
 
 /// An error that occurs on a type mismatch.
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, Eq, PartialEq, Error)]
 #[error("expected value of type {expected:?}, but got {actual:?}")]
 pub struct TypeMismatchError {
     /// Expected value type.
@@ -86,7 +86,7 @@ pub struct TypeMismatchError {
 }
 
 /// An error that occurs on a type mismatch.
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, Eq, PartialEq, Error)]
 pub enum SetValueError {
     #[error("{0}")]
     TypeMismatch(#[source] TypeMismatchError),
@@ -392,8 +392,8 @@ impl<'a> BytesOrHexString<'a> {
         match self {
             BytesOrHexString::BorrowedBytes(slice) => (*slice).into(),
             BytesOrHexString::OwnedBytes(vec) => vec,
-            BytesOrHexString::BorrowedString(s) => from_hex(s).unwrap_or_else(Vec::new),
-            BytesOrHexString::OwnedString(s) => from_hex(&s).unwrap_or_else(Vec::new),
+            BytesOrHexString::BorrowedString(s) => from_hex(s).unwrap_or_default(),
+            BytesOrHexString::OwnedString(s) => from_hex(&s).unwrap_or_default(),
         }
     }
 }
@@ -426,7 +426,7 @@ impl<'a> TryFrom<&'a LhsValue<'a>> for &'a [u8] {
 
     fn try_from(value: &'a LhsValue<'_>) -> Result<Self, TypeMismatchError> {
         match value {
-            LhsValue::Bytes(value) => Ok(&*value),
+            LhsValue::Bytes(value) => Ok(value),
             _ => Err(TypeMismatchError {
                 expected: Type::Bytes.into(),
                 actual: value.get_type(),

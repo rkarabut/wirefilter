@@ -129,7 +129,7 @@ impl ListMatcher for ListMatcherWrapper {
 pub struct AlwaysList {}
 
 /// Matcher for `AlwaysList`
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AlwaysListMatcher {}
 
 impl ListDefinition for AlwaysList {
@@ -161,7 +161,7 @@ impl ListMatcher for AlwaysListMatcher {
 pub struct NeverList {}
 
 /// Matcher for `NeverList`
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NeverListMatcher {}
 
 impl ListDefinition for NeverList {

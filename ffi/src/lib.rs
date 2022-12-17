@@ -328,8 +328,8 @@ pub extern "C" fn wirefilter_create_execution_context<'e, 's: 'e>(
 }
 
 #[no_mangle]
-pub extern "C" fn wirefilter_serialize_execution_context_to_json<'a>(
-    exec_context: &mut ExecutionContext<'a>,
+pub extern "C" fn wirefilter_serialize_execution_context_to_json(
+    exec_context: &mut ExecutionContext<'_>,
 ) -> SerializingResult {
     match serde_json::to_string(exec_context) {
         Ok(ok) => SerializingResult::Ok(ok.into()),
@@ -622,8 +622,8 @@ pub extern "C" fn wirefilter_free_array(array: RustBox<LhsValue<'_>>) {
 }
 
 #[no_mangle]
-pub extern "C" fn wirefilter_compile_filter<'s>(
-    filter_ast: RustBox<FilterAst<'s>>,
+pub extern "C" fn wirefilter_compile_filter(
+    filter_ast: RustBox<FilterAst<'_>>,
 ) -> CompilingResult<'_, '_> {
     catch_panic(std::panic::AssertUnwindSafe(|| {
         let filter_ast = filter_ast.into_real_box();

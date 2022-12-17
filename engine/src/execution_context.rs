@@ -14,7 +14,7 @@ use thiserror::Error;
 
 /// An error that occurs when setting the field value in the
 /// [`ExecutionContext`](struct@ExecutionContext)
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 pub enum SetFieldValueError {
     /// An error that occurs when trying to assign a value of the wrong type to
     /// a field.
@@ -28,7 +28,7 @@ pub enum SetFieldValueError {
 }
 
 /// An error that occurs when previously defined list gets redefined.
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 #[error("Invalid list matcher {matcher} for list {list}")]
 pub struct InvalidListMatcherError {
     matcher: String,
@@ -40,7 +40,7 @@ pub struct InvalidListMatcherError {
 ///
 /// It acts as a map in terms of public API, but provides a constant-time
 /// index-based access to values for a filter during execution.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ExecutionContext<'e, U = ()> {
     scheme: &'e Scheme,
     values: Box<[Option<LhsValue<'e>>]>,
@@ -297,7 +297,7 @@ impl<'e> Serialize for ExecutionContext<'e> {
         }
 
         if self.list_data.iter().any(|list_data| list_data.is_some()) {
-            map.serialize_entry("$lists", &ListDataSlice(self.scheme, &*self.list_data))?;
+            map.serialize_entry("$lists", &ListDataSlice(self.scheme, &self.list_data))?;
         }
         map.end()
     }

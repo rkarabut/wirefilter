@@ -83,7 +83,7 @@ impl std::fmt::Display for U256Error {
 
 fn lex_digits(input: &str) -> LexResult<'_, &str> {
     // Lex any supported digits (up to radix 16) for better error locations.
-    take_while(input, "digit", |c| c.is_digit(16))
+    take_while(input, "digit", |c| c.is_ascii_hexdigit())
 }
 
 impl<'i> Lex<'i> for U256Wrapper {

@@ -88,7 +88,7 @@ pub enum FunctionArgKind {
 }
 
 /// An error that occurs on a kind mismatch.
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 #[error("expected argument of kind {expected:?}, but got {actual:?}")]
 pub struct FunctionArgKindMismatchError {
     /// Expected value type.
@@ -98,14 +98,14 @@ pub struct FunctionArgKindMismatchError {
 }
 
 /// An error that occurs on a kind mismatch.
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 #[error("invalid argument: {msg:?}")]
 pub struct FunctionArgInvalidConstantError {
     msg: String,
 }
 
 /// An error that occurs for a bad function parameter
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 pub enum FunctionParamError {
     /// Function paramater value type has a different type than expected
     #[error("expected {0}")]
@@ -387,6 +387,7 @@ impl fmt::Debug for SimpleFunctionImpl {
     }
 }
 
+#[allow(clippy::ptr_eq)]
 impl PartialEq for SimpleFunctionImpl {
     fn eq(&self, other: &SimpleFunctionImpl) -> bool {
         self.0 as *const () == other.0 as *const ()
@@ -599,6 +600,7 @@ impl fmt::Debug for CtxFunctionImpl {
     }
 }
 
+#[allow(clippy::ptr_eq)]
 impl PartialEq for CtxFunctionImpl {
     fn eq(&self, other: &CtxFunctionImpl) -> bool {
         self.0 as *const () == other.0 as *const ()

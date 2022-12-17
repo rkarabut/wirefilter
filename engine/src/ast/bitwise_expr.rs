@@ -15,11 +15,11 @@ use crate::{
 use serde::Serialize;
 
 lex_enum!(BitwiseOp {
-    "&" | "bitwise_and" => BitwiseAnd,
-    "|" | "bitwise_or" => BitwiseOr,
-    "^" | "bitwise_xor" => BitwiseXor,
-    "<<" | "bitwise_shl" => BitwiseShiftLeft,
-    ">>" | "bitwise_shr" => BitwiseShiftRight,
+    "&" | "bitwise_and" => And,
+    "|" | "bitwise_or" => Or,
+    "^" | "bitwise_xor" => Xor,
+    "<<" | "bitwise_shl" => ShiftLeft,
+    ">>" | "bitwise_shr" => ShiftRight,
 });
 
 /// Bitwise binary expression
@@ -117,7 +117,7 @@ impl<'s> BitwiseExpr<'s> {
                     CompiledOneExpr::new(move |ctx| {
                         index_access_one!(
                             indexes,
-                            (&call.execute(ctx)).as_ref().ok(),
+                            call.execute(ctx).as_ref().ok(),
                             default,
                             ctx,
                             |v, ctx| { func(&op_func(v), ctx) }
@@ -159,44 +159,44 @@ impl<'s> BitwiseExpr<'s> {
 
         move |val| match op {
             BitwiseOpExpr::Int {
-                op: BitwiseOp::BitwiseAnd,
+                op: BitwiseOp::And,
                 rhs,
             } => (cast_value!(val, Int) & rhs).into(),
             BitwiseOpExpr::Int {
-                op: BitwiseOp::BitwiseOr,
+                op: BitwiseOp::Or,
                 rhs,
             } => (cast_value!(val, Int) | rhs).into(),
             BitwiseOpExpr::Int {
-                op: BitwiseOp::BitwiseXor,
+                op: BitwiseOp::Xor,
                 rhs,
             } => (cast_value!(val, Int) ^ rhs).into(),
             BitwiseOpExpr::Int {
-                op: BitwiseOp::BitwiseShiftLeft,
+                op: BitwiseOp::ShiftLeft,
                 rhs,
             } => (cast_value!(val, Int) << rhs).into(),
             BitwiseOpExpr::Int {
-                op: BitwiseOp::BitwiseShiftRight,
+                op: BitwiseOp::ShiftRight,
                 rhs,
             } => (cast_value!(val, Int) >> rhs).into(),
             BitwiseOpExpr::U256 {
-                op: BitwiseOp::BitwiseAnd,
+                op: BitwiseOp::And,
                 rhs,
             } => U256Wrapper::from(cast_value!(val, U256).value & rhs.value).into(),
             BitwiseOpExpr::U256 {
-                op: BitwiseOp::BitwiseOr,
+                op: BitwiseOp::Or,
                 rhs,
             } => U256Wrapper::from(cast_value!(val, U256).value | rhs.value).into(),
             BitwiseOpExpr::U256 {
-                op: BitwiseOp::BitwiseXor,
+                op: BitwiseOp::Xor,
                 rhs,
             } => U256Wrapper::from(cast_value!(val, U256).value ^ rhs.value).into(),
             BitwiseOpExpr::U256 {
-                op: BitwiseOp::BitwiseShiftLeft,
+                op: BitwiseOp::ShiftLeft,
                 rhs,
             } => U256Wrapper::from(cast_value!(val, U256).value << rhs.value.low_u32() as usize)
                 .into(),
             BitwiseOpExpr::U256 {
-                op: BitwiseOp::BitwiseShiftRight,
+                op: BitwiseOp::ShiftRight,
                 rhs,
             } => U256Wrapper::from(cast_value!(val, U256).value >> rhs.value.low_u32() as usize)
                 .into(),
@@ -225,9 +225,9 @@ impl<'s> ValueExpr<'s> for BitwiseExpr<'s> {
 
         if indexes.is_empty() {
             match lhs {
-                LhsFieldExpr::Field(f) => CompiledValueExpr::new(move |ctx| {
-                    Ok(op_func(&ctx.get_field_value_unchecked(f)))
-                }),
+                LhsFieldExpr::Field(f) => {
+                    CompiledValueExpr::new(move |ctx| Ok(op_func(ctx.get_field_value_unchecked(f))))
+                }
                 LhsFieldExpr::FunctionCallExpr(call) => {
                     let call = compiler.compile_function_call_expr(call);
                     CompiledValueExpr::new(move |ctx| {
@@ -244,7 +244,7 @@ impl<'s> ValueExpr<'s> for BitwiseExpr<'s> {
                         .fold(Some(ctx.get_field_value_unchecked(f)), |value, index| {
                             value.and_then(|val| val.get(index).unwrap())
                         })
-                        .map(|v| op_func(&v))
+                        .map(|v| op_func(v))
                         .ok_or_else(|| ty.clone())
                 }),
                 LhsFieldExpr::FunctionCallExpr(call) => {
@@ -325,7 +325,7 @@ mod tests {
                         indexes: vec![FieldIndex::ArrayIndex(i)],
                     },
                     op: BitwiseOpExpr::Int {
-                        op: BitwiseOp::BitwiseShiftLeft,
+                        op: BitwiseOp::ShiftLeft,
                         rhs: 1i32,
                     }
                 }

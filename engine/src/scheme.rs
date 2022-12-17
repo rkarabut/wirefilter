@@ -21,7 +21,7 @@ use thiserror::Error;
 
 /// An error that occurs if two underlying [schemes](struct@Scheme)
 /// don't match.
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 #[error("underlying schemes do not match")]
 pub struct SchemeMismatchError;
 
@@ -80,7 +80,7 @@ impl<'i> Lex<'i> for FieldIndex {
     }
 }
 
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 #[error("cannot access index {index:?} for type {actual:?}")]
 pub struct IndexAccessError {
     pub index: FieldIndex,
@@ -260,28 +260,28 @@ impl<'i, 's> LexWith<'i, &'s Scheme> for Identifier<'s> {
 
 /// An error that occurs if an unregistered field name was queried from a
 /// [`Scheme`](struct@Scheme).
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 #[error("unknown field")]
 pub struct UnknownFieldError;
 
 /// An error that occurs if an unregistered function name was queried from a
 /// [`Scheme`](struct@Scheme).
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 #[error("unknown function")]
 pub struct UnknownFunctionError;
 
 /// An error that occurs when previously defined field gets redefined.
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 #[error("attempt to redefine field {0}")]
 pub struct FieldRedefinitionError(String);
 
 /// An error that occurs when previously defined function gets redefined.
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 #[error("attempt to redefine function {0}")]
 pub struct FunctionRedefinitionError(String);
 
 /// An error that occurs when trying to redefine a field or function.
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 pub enum IdentifierRedefinitionError {
     /// An error that occurs when previously defined field gets redefined.
     #[error("{0}")]
@@ -427,7 +427,7 @@ impl<'s> Debug for List<'s> {
 }
 
 /// An error that occurs when previously defined list gets redefined.
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Eq, Error)]
 #[error("attempt to redefine list for type {0:?}")]
 pub struct ListRedefinitionError(Type);
 

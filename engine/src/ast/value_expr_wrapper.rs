@@ -82,12 +82,12 @@ impl<'s> GetType for ValueExprWrapper<'s> {
 impl<'s> ValueExpr<'s> for ValueExprWrapper<'s> {
     #[inline]
     fn walk<V: Visitor<'s>>(&self, visitor: &mut V) {
-        visitor.visit_index_expr(&self.index_expr())
+        visitor.visit_index_expr(self.index_expr())
     }
 
     #[inline]
     fn walk_mut<V: VisitorMut<'s>>(&mut self, visitor: &mut V) {
-        visitor.visit_index_expr(&mut self.index_expr_mut())
+        visitor.visit_index_expr(self.index_expr_mut())
     }
 
     fn compile_with_compiler<U: 's, C: Compiler<'s, U> + 's>(
