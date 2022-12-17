@@ -1,8 +1,10 @@
+pub mod bitwise_expr;
 pub mod field_expr;
 pub mod function_expr;
 pub mod index_expr;
 pub mod logical_expr;
 pub mod simple_expr;
+pub mod value_expr_wrapper;
 pub mod visitor;
 
 use self::logical_expr::LogicalExpr;

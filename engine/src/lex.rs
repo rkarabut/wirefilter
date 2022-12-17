@@ -160,7 +160,10 @@ pub enum LexErrorKind {
 
     /// Literal expects concrete type only
     #[error("literals can only contain concrete types, provided type: {wrong_type:?}")]
-    LiteralExpectsConcreteType { wrong_type: ExpectedType },
+    LiteralExpectsConcreteType {
+        /// Provided (wrong) type
+        wrong_type: ExpectedType,
+    },
 }
 
 pub type LexError<'i> = (LexErrorKind, &'i str);

@@ -82,6 +82,7 @@ pub use self::{
         index_expr::IndexExpr,
         logical_expr::{LogicalExpr, LogicalOp},
         simple_expr::SimpleExpr,
+        value_expr_wrapper::ValueExprWrapper,
         visitor::{Visitor, VisitorMut},
         Expr, FilterAst, ValueExpr,
     },

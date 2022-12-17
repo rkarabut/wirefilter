@@ -138,7 +138,7 @@ impl<'s> ValueExpr<'s> for IndexExpr<'s> {
     }
 }
 
-fn simplify_indexes(mut indexes: Vec<FieldIndex>) -> Box<[FieldIndex]> {
+pub(crate) fn simplify_indexes(mut indexes: Vec<FieldIndex>) -> Box<[FieldIndex]> {
     if Some(&FieldIndex::MapEach) == indexes.last() {
         indexes.pop();
     }

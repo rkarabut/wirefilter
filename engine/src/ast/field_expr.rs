@@ -4,7 +4,7 @@ use super::{
     Expr,
 };
 use crate::{
-    ast::index_expr::IndexExpr,
+    ast::value_expr_wrapper::ValueExprWrapper,
     compiler::Compiler,
     filter::{CompiledExpr, CompiledValueExpr},
     lex::{expect, skip_space, span, Lex, LexErrorKind, LexResult, LexWith},
@@ -255,7 +255,7 @@ impl<'s> GetType for LhsFieldExpr<'s> {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize)]
 pub struct ComparisonExpr<'s> {
     /// Lef-hand side of the comparison expression
-    pub lhs: IndexExpr<'s>,
+    pub lhs: ValueExprWrapper<'s>,
 
     /// Operator + right-hand side of the comparison expression
     #[serde(flatten)]
@@ -277,7 +277,7 @@ impl<'s> GetType for ComparisonExpr<'s> {
 
 impl<'i, 's> LexWith<'i, &'s Scheme> for ComparisonExpr<'s> {
     fn lex_with(input: &'i str, scheme: &'s Scheme) -> LexResult<'i, Self> {
-        let (lhs, input) = IndexExpr::lex_with(input, scheme)?;
+        let (lhs, input) = ValueExprWrapper::lex_with(input, scheme)?;
 
         Self::lex_with_lhs(input, scheme, lhs)
     }
@@ -287,7 +287,7 @@ impl<'s> ComparisonExpr<'s> {
     pub(crate) fn lex_with_lhs<'i>(
         input: &'i str,
         scheme: &'s Scheme,
-        lhs: IndexExpr<'s>,
+        lhs: ValueExprWrapper<'s>,
     ) -> LexResult<'i, Self> {
         let lhs_type = lhs.get_type();
 
@@ -391,12 +391,12 @@ impl<'s> ComparisonExpr<'s> {
 impl<'s> Expr<'s> for ComparisonExpr<'s> {
     #[inline]
     fn walk<V: Visitor<'s>>(&self, visitor: &mut V) {
-        visitor.visit_index_expr(&self.lhs)
+        visitor.visit_index_expr(&self.lhs.index_expr())
     }
 
     #[inline]
     fn walk_mut<V: VisitorMut<'s>>(&mut self, visitor: &mut V) {
-        visitor.visit_index_expr(&mut self.lhs)
+        visitor.visit_index_expr(&mut self.lhs.index_expr_mut())
     }
 
     fn compile_with_compiler<U: 's, C: Compiler<'s, U> + 's>(
@@ -416,14 +416,18 @@ impl<'s> Expr<'s> for ComparisonExpr<'s> {
 
         match self.op {
             ComparisonOpExpr::IsTrue => {
-                if lhs.get_type() == Type::Bool {
-                    lhs.compile_with(compiler, false, move |x, _ctx| *cast_value!(x, Bool))
-                } else if lhs.get_type().next() == Some(Type::Bool) {
-                    // MapEach is impossible in this case, thus call `compile_vec_with` directly
-                    // to coerce LhsValue to Vec<bool>
-                    CompiledExpr::Vec(
-                        lhs.compile_vec_with(compiler, move |x, _ctx| *cast_value!(x, Bool)),
-                    )
+                if let ValueExprWrapper::IndexExpr(lhs) = lhs {
+                    if lhs.get_type() == Type::Bool {
+                        lhs.compile_with(compiler, false, move |x, _ctx| *cast_value!(x, Bool))
+                    } else if lhs.get_type().next() == Some(Type::Bool) {
+                        // MapEach is impossible in this case, thus call `compile_vec_with` directly
+                        // to coerce LhsValue to Vec<bool>
+                        CompiledExpr::Vec(
+                            lhs.compile_vec_with(compiler, move |x, _ctx| *cast_value!(x, Bool)),
+                        )
+                    } else {
+                        unreachable!()
+                    }
                 } else {
                     unreachable!()
                 }
@@ -579,8 +583,11 @@ mod tests {
     use super::*;
     use crate::{
         ast::{
+            bitwise_expr::{BitwiseExpr, BitwiseOp, BitwiseOpExpr},
             function_expr::{FunctionCallArgExpr, FunctionCallExpr},
+            index_expr::IndexExpr,
             simple_expr::SimpleExpr,
+            value_expr_wrapper::ValueExprWrapper,
         },
         execution_context::ExecutionContext,
         functions::{
@@ -846,10 +853,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with("ssl", &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("ssl")),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::IsTrue
             }
         );
@@ -877,10 +884,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with("ip.addr <= 10:20:30:40:50:60:70:80", &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("ip.addr")),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::LessThanEqual,
                     rhs: RhsValue::Ip(IpAddr::from([
@@ -932,10 +939,10 @@ mod tests {
             let expr = assert_ok!(
                 ComparisonExpr::lex_with("http.host >= 10:20:30:40:50:60:70:80", &SCHEME),
                 ComparisonExpr {
-                    lhs: IndexExpr {
+                    lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                         lhs: LhsFieldExpr::Field(field("http.host")),
                         indexes: vec![],
-                    },
+                    }),
                     op: ComparisonOpExpr::Ordering {
                         op: OrderingOp::GreaterThanEqual,
                         rhs: RhsValue::Bytes(
@@ -960,10 +967,10 @@ mod tests {
             let expr = assert_ok!(
                 ComparisonExpr::lex_with(r#"http.host < 12"#, &SCHEME),
                 ComparisonExpr {
-                    lhs: IndexExpr {
+                    lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                         lhs: LhsFieldExpr::Field(field("http.host")),
                         indexes: vec![],
-                    },
+                    }),
                     op: ComparisonOpExpr::Ordering {
                         op: OrderingOp::LessThan,
                         rhs: RhsValue::Bytes(vec![0x12].into()),
@@ -984,10 +991,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.host == "example.org""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.host")),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("example.org".to_owned().into())
@@ -1019,15 +1026,21 @@ mod tests {
     #[test]
     fn test_bitwise_and() {
         let expr = assert_ok!(
-            ComparisonExpr::lex_with("tcp.port & 1", &SCHEME),
+            ComparisonExpr::lex_with("tcp.port & 1 != 0", &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
-                    lhs: LhsFieldExpr::Field(field("tcp.port")),
-                    indexes: vec![],
-                },
-                op: ComparisonOpExpr::Int {
-                    op: IntOp::BitwiseAnd,
-                    rhs: 1,
+                lhs: ValueExprWrapper::BitwiseExpr(BitwiseExpr {
+                    lhs: IndexExpr {
+                        lhs: LhsFieldExpr::Field(field("tcp.port")),
+                        indexes: vec![],
+                    },
+                    op: BitwiseOpExpr::Int {
+                        op: BitwiseOp::BitwiseAnd,
+                        rhs: 1i32,
+                    }
+                }),
+                op: ComparisonOpExpr::Ordering {
+                    op: OrderingOp::NotEqual,
+                    rhs: RhsValue::Int(0),
                 }
             }
         );
@@ -1035,9 +1048,13 @@ mod tests {
         assert_json!(
             expr,
             {
-                "lhs": "tcp.port",
-                "op": "BitwiseAnd",
-                "rhs": 1
+                "lhs": {
+                    "lhs": "tcp.port",
+                    "op": "BitwiseAnd",
+                    "rhs": 1,
+                },
+                "op": "NotEqual",
+                "rhs": 0,
             }
         );
 
@@ -1056,10 +1073,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"tcp.port in { 80 443 2082..2083 }"#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("tcp.port")),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::OneOf(RhsValues::Int(vec![
                     80.into(),
                     443.into(),
@@ -1111,10 +1128,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.host in { "example.org" "example.com" }"#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.host")),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::OneOf(RhsValues::Bytes(
                     ["example.org", "example.com",]
                         .iter()
@@ -1160,10 +1177,10 @@ mod tests {
                 &SCHEME
             ),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("ip.addr")),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::OneOf(RhsValues::Ip(vec![
                     IpRange::Cidr(IpCidr::new([127, 0, 0, 0].into(), 8).unwrap()),
                     IpRange::Cidr(IpCidr::new_host([0, 0, 0, 0, 0, 0, 0, 1].into())),
@@ -1216,10 +1233,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.host contains "abc""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.host")),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::Contains("abc".to_owned().into())
             }
         );
@@ -1250,10 +1267,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.host contains 6F:72:67"#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.host")),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::Contains(vec![0x6F, 0x72, 0x67].into()),
             }
         );
@@ -1284,10 +1301,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"tcp.port < 8000"#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("tcp.port")),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::LessThan,
                     rhs: RhsValue::Int(8000)
@@ -1319,10 +1336,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.cookies[0] contains "abc""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.cookies")),
                     indexes: vec![FieldIndex::ArrayIndex(0)],
-                },
+                }),
                 op: ComparisonOpExpr::Contains("abc".to_owned().into()),
             }
         );
@@ -1354,10 +1371,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.headers["host"] contains "abc""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.headers")),
                     indexes: vec![FieldIndex::MapKey("host".to_string())],
-                },
+                }),
                 op: ComparisonOpExpr::Contains("abc".to_owned().into()),
             }
         );
@@ -1401,7 +1418,7 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"echo(http.host) == "example.org""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::FunctionCallExpr(FunctionCallExpr {
                         function: SCHEME.get_function("echo").unwrap(),
                         args: vec![FunctionCallArgExpr::IndexExpr(IndexExpr {
@@ -1412,7 +1429,7 @@ mod tests {
                         context: None,
                     }),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("example.org".to_owned().into())
@@ -1454,7 +1471,7 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"lowercase(http.host) == "example.org""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::FunctionCallExpr(FunctionCallExpr {
                         function: SCHEME.get_function("lowercase").unwrap(),
                         args: vec![FunctionCallArgExpr::IndexExpr(IndexExpr {
@@ -1465,7 +1482,7 @@ mod tests {
                         context: None,
                     }),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("example.org".to_owned().into())
@@ -1507,10 +1524,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.cookies[0] == "example.org""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.cookies")),
                     indexes: vec![FieldIndex::ArrayIndex(0)],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("example.org".to_owned().into())
@@ -1543,10 +1560,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.cookies[0] != "example.org""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.cookies")),
                     indexes: vec![FieldIndex::ArrayIndex(0)],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::NotEqual,
                     rhs: RhsValue::Bytes("example.org".to_owned().into())
@@ -1579,10 +1596,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.headers["missing"] == "example.org""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.headers")),
                     indexes: vec![FieldIndex::MapKey("missing".into())],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("example.org".to_owned().into())
@@ -1615,10 +1632,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.headers["missing"] != "example.org""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.headers")),
                     indexes: vec![FieldIndex::MapKey("missing".into())],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::NotEqual,
                     rhs: RhsValue::Bytes("example.org".to_owned().into())
@@ -1651,7 +1668,7 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"concat(http.host) == "example.org""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::FunctionCallExpr(FunctionCallExpr {
                         function: SCHEME.get_function("concat").unwrap(),
                         args: vec![FunctionCallArgExpr::IndexExpr(IndexExpr {
@@ -1662,7 +1679,7 @@ mod tests {
                         context: None,
                     }),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("example.org".to_owned().into())
@@ -1701,7 +1718,7 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"concat(http.host, ".org") == "example.org""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::FunctionCallExpr(FunctionCallExpr {
                         function: SCHEME.get_function("concat").unwrap(),
                         args: vec![
@@ -1717,7 +1734,7 @@ mod tests {
                         context: None,
                     }),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("example.org".to_owned().into())
@@ -1765,7 +1782,7 @@ mod tests {
                 &SCHEME
             ),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::FunctionCallExpr(FunctionCallExpr {
                         function: SCHEME.get_function("filter").unwrap(),
                         args: vec![
@@ -1782,7 +1799,7 @@ mod tests {
                         context: None,
                     }),
                     indexes: vec![FieldIndex::ArrayIndex(0)],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("three".to_owned().into())
@@ -1847,7 +1864,7 @@ mod tests {
                 &SCHEME
             ),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::FunctionCallExpr(FunctionCallExpr {
                         function: SCHEME.get_function("concat").unwrap(),
                         args: vec![
@@ -1863,7 +1880,7 @@ mod tests {
                         context: None,
                     }),
                     indexes: vec![FieldIndex::ArrayIndex(2)],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("three-cf".to_owned().into())
@@ -1918,7 +1935,7 @@ mod tests {
                 &SCHEME
             ),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::FunctionCallExpr(FunctionCallExpr {
                         function: SCHEME.get_function("concat").unwrap(),
                         args: vec![
@@ -1934,7 +1951,7 @@ mod tests {
                         context: None,
                     }),
                     indexes: vec![FieldIndex::ArrayIndex(2)],
-                },
+                }),
                 op: ComparisonOpExpr::OneOf(RhsValues::Bytes(vec![
                     "one-cf".to_owned().into(),
                     "two-cf".to_owned().into(),
@@ -1987,10 +2004,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.cookies[*] == "three""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.cookies")),
                     indexes: vec![FieldIndex::MapEach],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("three".to_owned().into())
@@ -2030,10 +2047,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.headers[*] == "three""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.headers")),
                     indexes: vec![FieldIndex::MapEach],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("three".to_owned().into())
@@ -2085,7 +2102,7 @@ mod tests {
                 &SCHEME
             ),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::FunctionCallExpr(FunctionCallExpr {
                         function: SCHEME.get_function("concat").unwrap(),
                         args: vec![
@@ -2101,7 +2118,7 @@ mod tests {
                         context: None,
                     }),
                     indexes: vec![FieldIndex::MapEach],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("three-cf".to_owned().into())
@@ -2156,18 +2173,18 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"len(http.cookies[*])[*] > 3"#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::FunctionCallExpr(FunctionCallExpr {
                         function: SCHEME.get_function("len").unwrap(),
                         args: vec![FunctionCallArgExpr::IndexExpr(IndexExpr {
                             lhs: LhsFieldExpr::Field(field("http.cookies")),
                             indexes: vec![FieldIndex::MapEach],
-                        }),],
+                        })],
                         return_type: Type::Int,
                         context: None,
                     }),
                     indexes: vec![FieldIndex::MapEach],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::GreaterThan,
                     rhs: RhsValue::Int(3),
@@ -2302,10 +2319,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"tcp.port in $even"#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("tcp.port")),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::InList {
                     list,
                     name: ListName::from("even".to_string())
@@ -2364,15 +2381,15 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"any(tcp.ports[*] in $even)"#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::FunctionCallExpr(FunctionCallExpr {
                         function: SCHEME.get_function("any").unwrap(),
                         args: vec![FunctionCallArgExpr::SimpleExpr(SimpleExpr::Comparison(
                             ComparisonExpr {
-                                lhs: IndexExpr {
+                                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                                     lhs: LhsFieldExpr::Field(field("tcp.ports")),
                                     indexes: vec![FieldIndex::MapEach],
-                                },
+                                }),
                                 op: ComparisonOpExpr::InList {
                                     list,
                                     name: ListName::from("even".to_string()),
@@ -2383,7 +2400,7 @@ mod tests {
                         context: None,
                     }),
                     indexes: vec![],
-                },
+                }),
                 op: ComparisonOpExpr::IsTrue
             }
         );
@@ -2437,10 +2454,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.parts[*][*] == "[5][5]""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.parts")),
                     indexes: vec![FieldIndex::MapEach, FieldIndex::MapEach],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("[5][5]".to_owned().into())
@@ -2464,10 +2481,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.parts[5][*] == "[5][5]""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.parts")),
                     indexes: vec![FieldIndex::ArrayIndex(5), FieldIndex::MapEach],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("[5][5]".to_owned().into())
@@ -2491,10 +2508,10 @@ mod tests {
         let expr = assert_ok!(
             ComparisonExpr::lex_with(r#"http.parts[*][5] == "[5][5]""#, &SCHEME),
             ComparisonExpr {
-                lhs: IndexExpr {
+                lhs: ValueExprWrapper::IndexExpr(IndexExpr {
                     lhs: LhsFieldExpr::Field(field("http.parts")),
                     indexes: vec![FieldIndex::MapEach, FieldIndex::ArrayIndex(5)],
-                },
+                }),
                 op: ComparisonOpExpr::Ordering {
                     op: OrderingOp::Equal,
                     rhs: RhsValue::Bytes("[5][5]".to_owned().into())
