@@ -47,6 +47,9 @@ pub enum FieldIndex {
 
     /// Map each element by applying a function or a comparison
     MapEach,
+
+    /// Array indices in the form of [start, end)
+    ArraySlice(u32, u32),
 }
 
 impl<'i> Lex<'i> for FieldIndex {
@@ -65,7 +68,26 @@ impl<'i> Lex<'i> for FieldIndex {
 
         match rhs {
             RhsValue::Int(i) => match u32::try_from(i) {
-                Ok(u) => Ok((FieldIndex::ArrayIndex(u), rest)),
+                Ok(u) => {
+                    // try interpreting as slice
+                    if let Ok(input) = expect(rest, ":") {
+                        let (rhs, rest) = RhsValue::lex_with(input, Type::Int)?;
+                        match rhs {
+                            RhsValue::Int(i) => match u32::try_from(i) {
+                                Ok(u2) => Ok((FieldIndex::ArraySlice(u, u2), rest)),
+                                Err(_) => Err((
+                                    LexErrorKind::ExpectedLiteral(
+                                        "expected positive integer as end index",
+                                    ),
+                                    input,
+                                )),
+                            },
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        Ok((FieldIndex::ArrayIndex(u), rest))
+                    }
+                }
                 Err(_) => Err((
                     LexErrorKind::ExpectedLiteral("expected positive integer as index"),
                     input,
@@ -85,6 +107,14 @@ impl<'i> Lex<'i> for FieldIndex {
 pub struct IndexAccessError {
     pub index: FieldIndex,
     pub actual: Type,
+}
+
+#[derive(Debug, PartialEq, Eq, Error)]
+#[error("cannot access index {index:?} for type {actual:?}: bounded to {bounds:?}")]
+pub struct InvalidSliceIndex {
+    pub index: FieldIndex,
+    pub actual: Type,
+    pub bounds: (usize, usize),
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]

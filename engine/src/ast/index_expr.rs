@@ -9,9 +9,11 @@ use crate::{
     filter::{CompiledExpr, CompiledOneExpr, CompiledValueExpr, CompiledVecExpr},
     lex::{complete, expect, skip_space, span, Lex, LexErrorKind, LexResult, LexWith},
     lhs_types::{Array, Map},
+    rhs_types::U256Wrapper,
     scheme::{FieldIndex, IndexAccessError, ParseError, Scheme},
     types::{GetType, IntoIter, LhsValue, Type, TypeMismatchError},
 };
+use bigint::uint::U256;
 use serde::{ser::SerializeSeq, Serialize, Serializer};
 
 /// IndexExpr is an expr that destructures an index into an LhsFieldExpr.
@@ -28,12 +30,36 @@ pub struct IndexExpr<'s> {
 
 macro_rules! index_access_one {
     ($indexes:ident, $first:expr, $default:expr, $ctx:ident, $func:expr) => {
-        $indexes
+        if $indexes
             .iter()
-            .fold($first, |value, idx| {
-                value.and_then(|val| val.get(idx).unwrap())
-            })
-            .map_or_else(|| $default, |val| $func(val, $ctx))
+            .any(|idx| matches!(idx, FieldIndex::ArraySlice(..)))
+        {
+            $indexes
+                .iter()
+                .take($indexes.len() - 1)
+                .fold($first, |value, idx| {
+                    // a slice can currently only be the last possible index
+                    if matches!(idx, FieldIndex::ArraySlice(..)) {
+                        None
+                    } else {
+                        value.and_then(|val| val.get(idx).unwrap())
+                    }
+                })
+                .and_then(|val| {
+                    // TODO is this wasteful? not sure how to implement slicing otherwise
+                    val.clone()
+                        .extract($indexes.iter().last().unwrap())
+                        .unwrap()
+                })
+                .map_or_else(|| $default, |val| $func(&val, $ctx))
+        } else {
+            $indexes
+                .iter()
+                .fold($first, |value, idx| {
+                    value.and_then(|val| val.get(idx).unwrap())
+                })
+                .map_or_else(|| $default, |val| $func(val, $ctx))
+        }
     };
 }
 
@@ -328,6 +354,20 @@ impl<'i, 's> LexWith<'i, &'s Scheme> for IndexExpr<'s> {
                     Type::Array(array_type) => {
                         current_type = *array_type;
                     }
+                    Type::EthAbiToken => (),
+                    _ => {
+                        return Err((
+                            LexErrorKind::InvalidIndexAccess(IndexAccessError {
+                                index: idx,
+                                actual: current_type,
+                            }),
+                            span(input, rest),
+                        ))
+                    }
+                },
+                FieldIndex::ArraySlice(_, _) => match current_type {
+                    // valid slices should not change current_type
+                    Type::Array(_) | Type::U256 | Type::Bytes | Type::EthAbiToken => (),
                     _ => {
                         return Err((
                             LexErrorKind::InvalidIndexAccess(IndexAccessError {
@@ -373,6 +413,11 @@ impl<'i, 's> LexWith<'i, &'s Scheme> for IndexExpr<'s> {
 
             input = rest;
 
+            if !matches!(idx, FieldIndex::MapEach) {
+                if let Some(FieldIndex::ArraySlice(..)) = indexes.last() {
+                    return Err((LexErrorKind::SliceIndexIsNotLast, input));
+                }
+            }
             indexes.push(idx);
         }
 
@@ -384,11 +429,15 @@ impl<'s> GetType for IndexExpr<'s> {
     fn get_type(&self) -> Type {
         let mut ty = self.lhs.get_type();
         for index in &self.indexes {
-            ty = match (ty, index) {
+            ty = match (ty.clone(), index) {
                 (Type::Array(idx), FieldIndex::ArrayIndex(_)) => *idx,
                 (Type::Array(idx), FieldIndex::MapEach) => *idx,
                 (Type::Map(child), FieldIndex::MapKey(_)) => *child,
                 (Type::Map(child), FieldIndex::MapEach) => *child,
+                (Type::Array(_), FieldIndex::ArraySlice(..)) => ty,
+                (Type::U256, FieldIndex::ArraySlice(..)) => ty,
+                (Type::Bytes, FieldIndex::ArraySlice(..)) => ty,
+                (Type::EthAbiToken, FieldIndex::ArraySlice(..)) => ty,
                 (_, _) => unreachable!(),
             }
         }
@@ -416,6 +465,8 @@ impl<'s> Serialize for IndexExpr<'s> {
 
 enum FieldIndexIterator<'a, 'b> {
     ArrayIndex(Option<(Array<'a>, u32)>),
+    ArraySlice(Option<(Array<'a>, u32, u32)>),
+    U256Slice(Option<(U256Wrapper, u32, u32)>),
     MapKey(Option<(Map<'a>, &'b [u8])>),
     MapEach(IntoIter<'a>),
 }
@@ -425,8 +476,17 @@ impl<'a, 'b> FieldIndexIterator<'a, 'b> {
         match idx {
             FieldIndex::ArrayIndex(idx) => match val {
                 LhsValue::Array(arr) => Ok(Self::ArrayIndex(Some((arr, *idx)))),
+                LhsValue::U256(val) => Ok(Self::U256Slice(Some((val, *idx, *idx + 1)))),
                 _ => Err(IndexAccessError {
                     index: FieldIndex::ArrayIndex(*idx),
+                    actual: val.get_type(),
+                }),
+            },
+            FieldIndex::ArraySlice(start, end) => match val {
+                LhsValue::Array(arr) => Ok(Self::ArraySlice(Some((arr, *start, *end)))),
+                LhsValue::U256(val) => Ok(Self::U256Slice(Some((val, *start, *end)))),
+                _ => Err(IndexAccessError {
+                    index: FieldIndex::ArraySlice(*start, *end),
                     actual: val.get_type(),
                 }),
             },
@@ -454,6 +514,32 @@ impl<'a, 'b> Iterator for FieldIndexIterator<'a, 'b> {
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Self::ArrayIndex(opt) => opt.take().and_then(|(arr, idx)| arr.extract(idx as usize)),
+            Self::ArraySlice(opt) => opt.take().and_then(|(arr, start, end)| {
+                let mut res = Array::new(arr.value_type().to_owned());
+                let mut idx = start as usize;
+                while idx < end as usize {
+                    if let Some(val) = arr.get(idx) {
+                        if res.push(val.clone().into_owned()).is_err() {
+                            return None;
+                        }
+                    }
+                    idx += 1;
+                }
+                Some(res.into())
+            }),
+            Self::U256Slice(opt) => opt.take().and_then(|(val, start, end)| {
+                let (start, end) = (start as usize, end as usize);
+                if start >= end || end > 32 {
+                    None
+                } else {
+                    let mut bytes = [0u8; 32];
+                    val.value.to_big_endian(&mut bytes);
+
+                    let mut res = vec![0u8; 32 - (end - start)];
+                    res.extend_from_slice(&bytes.as_slice()[start..end]);
+                    Some(U256Wrapper::from(U256::from_big_endian(&res)).into())
+                }
+            }),
             Self::MapKey(opt) => opt.take().and_then(|(map, key)| map.extract(key)),
             Self::MapEach(iter) => iter.next(),
         }

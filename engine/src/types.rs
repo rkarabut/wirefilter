@@ -8,6 +8,8 @@ use crate::{
     scheme::{FieldIndex, IndexAccessError},
     strict_partial_ord::StrictPartialOrd,
 };
+use bigint::uint::U256;
+use ethabi::Token;
 use serde::{
     de::{DeserializeSeed, Deserializer},
     Deserialize, Serialize, Serializer,
@@ -508,6 +510,10 @@ impl<'a> LhsValue<'a> {
     pub fn get(&'a self, item: &FieldIndex) -> Result<Option<&'a LhsValue<'a>>, IndexAccessError> {
         match (self, item) {
             (LhsValue::Array(arr), FieldIndex::ArrayIndex(ref idx)) => Ok(arr.get(*idx as usize)),
+            (_, FieldIndex::ArraySlice(_, _)) => Err(IndexAccessError {
+                index: item.clone(),
+                actual: self.get_type(),
+            }),
             (_, FieldIndex::ArrayIndex(_)) => Err(IndexAccessError {
                 index: item.clone(),
                 actual: self.get_type(),
@@ -531,6 +537,120 @@ impl<'a> LhsValue<'a> {
         match item {
             FieldIndex::ArrayIndex(idx) => match self {
                 LhsValue::Array(arr) => Ok(arr.extract(*idx as usize)),
+                // TODO isn't currently reachable
+                LhsValue::EthAbiToken(ref val) => match val.value() {
+                    Token::Array(val) | Token::FixedArray(val) | Token::Tuple(val) => val
+                        .get(*idx as usize)
+                        .map(|val| Some(EthAbiToken::new(val.clone()).into()))
+                        .ok_or_else(|| IndexAccessError {
+                            index: item.clone(),
+                            actual: self.get_type(),
+                        }),
+                    _ => Err(IndexAccessError {
+                        index: item.clone(),
+                        actual: self.get_type(),
+                    }),
+                },
+                _ => Err(IndexAccessError {
+                    index: item.clone(),
+                    actual: self.get_type(),
+                }),
+            },
+            FieldIndex::ArraySlice(start, end) => match self {
+                LhsValue::Array(arr) => {
+                    let mut res = Array::new(arr.value_type().to_owned());
+                    let mut idx = *start as usize;
+                    while idx < *end as usize {
+                        if let Some(val) = arr.get(idx) {
+                            if let Err(_) = res.push(val.clone().into_owned()) {
+                                unreachable!();
+                            }
+                        }
+                        idx += 1;
+                    }
+                    Ok(Some(res.into()))
+                }
+                LhsValue::U256(val) => {
+                    let (start, end) = (*start as usize, *end as usize);
+                    if start >= end || end > 32 {
+                        Err(IndexAccessError {
+                            index: item.clone(),
+                            actual: self.get_type(),
+                        })
+                    } else {
+                        let mut bytes = [0u8; 32];
+                        val.value.to_big_endian(&mut bytes);
+
+                        let mut res = vec![0u8; 32 - (end - start)];
+                        res.extend_from_slice(&bytes.as_slice()[start..end]);
+                        Ok(Some(U256Wrapper::from(U256::from_big_endian(&res)).into()))
+                    }
+                }
+                LhsValue::Bytes(ref val) => {
+                    let (start, end) = (*start as usize, *end as usize);
+                    if start >= end || end > val.len() {
+                        Err(IndexAccessError {
+                            index: item.clone(),
+                            actual: self.get_type(),
+                        })
+                    } else {
+                        Ok(Some(val[start..end].to_vec().into()))
+                    }
+                }
+                LhsValue::EthAbiToken(ref val) => match val.value() {
+                    Token::Bytes(val) | Token::FixedBytes(val) => {
+                        let (start, end) = (*start as usize, *end as usize);
+                        if start >= end || end > val.len() {
+                            Err(IndexAccessError {
+                                index: item.clone(),
+                                actual: self.get_type(),
+                            })
+                        } else {
+                            Ok(Some(
+                                EthAbiToken::new(Token::Bytes(val[start..end].to_vec())).into(),
+                            ))
+                        }
+                    }
+                    Token::Uint(val) => {
+                        let (start, end) = (*start as usize, *end as usize);
+                        if start >= end || end > 32 {
+                            Err(IndexAccessError {
+                                index: item.clone(),
+                                actual: self.get_type(),
+                            })
+                        } else {
+                            let mut bytes = [0u8; 32];
+                            val.to_big_endian(&mut bytes);
+
+                            Ok(Some(
+                                EthAbiToken::new(Token::Bytes(
+                                    bytes.as_slice()[start..end].to_vec(),
+                                ))
+                                .into(),
+                            ))
+                        }
+                    }
+                    Token::Address(val) => {
+                        let (start, end) = (*start as usize, *end as usize);
+                        if start >= end || end > 20 {
+                            Err(IndexAccessError {
+                                index: item.clone(),
+                                actual: self.get_type(),
+                            })
+                        } else {
+                            Ok(Some(
+                                EthAbiToken::new(Token::Bytes(
+                                    val.as_fixed_bytes()[start..end].to_vec(),
+                                ))
+                                .into(),
+                            ))
+                        }
+                    }
+                    _ => Err(IndexAccessError {
+                        index: item.clone(),
+                        actual: self.get_type(),
+                    }),
+                },
                 _ => Err(IndexAccessError {
                     index: item.clone(),
                     actual: self.get_type(),
@@ -570,6 +690,10 @@ impl<'a> LhsValue<'a> {
                     actual: self.get_type(),
                 })),
             },
+            FieldIndex::ArraySlice(..) => Err(SetValueError::IndexAccess(IndexAccessError {
+                index: item,
+                actual: self.get_type(),
+            })),
             FieldIndex::MapKey(name) => match self {
                 LhsValue::Map(ref mut map) => map
                     .insert(name.as_bytes(), value)

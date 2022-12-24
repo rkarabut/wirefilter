@@ -143,6 +143,10 @@ pub enum LexErrorKind {
     #[error("{0}")]
     InvalidIndexAccess(#[source] IndexAccessError),
 
+    /// The slice index operator isn't last in sequence
+    #[error("slice index can only come last")]
+    SliceIndexIsNotLast,
+
     /// Invalid type
     #[error("{0}")]
     TypeMismatch(#[source] TypeMismatchError),
