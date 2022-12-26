@@ -11,6 +11,7 @@ use thiserror::Error;
 use crate::{
     lex::{expect, take_while, Lex, LexErrorKind, LexResult},
     strict_partial_ord::StrictPartialOrd,
+    types::LhsValue,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -56,6 +57,21 @@ impl EthAbiToken {
             .map_err(|e| EthAbiTokenError::Tokenize(e.to_string()))?;
 
         Ok(Self::new(token))
+    }
+
+    /// Extracts a value from array/tuple.
+    pub(crate) fn extract<'a>(self, idx: usize) -> Option<LhsValue<'a>> {
+        match self.value {
+            Token::Array(arr) | Token::FixedArray(arr) | Token::Tuple(arr) => {
+                if idx >= arr.len() {
+                    None
+                } else {
+                    arr.get(idx)
+                        .map(|token| LhsValue::from(Self::new(token.clone())))
+                }
+            }
+            _ => None,
+        }
     }
 }
 

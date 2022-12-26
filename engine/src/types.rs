@@ -510,7 +510,11 @@ impl<'a> LhsValue<'a> {
     pub fn get(&'a self, item: &FieldIndex) -> Result<Option<&'a LhsValue<'a>>, IndexAccessError> {
         match (self, item) {
             (LhsValue::Array(arr), FieldIndex::ArrayIndex(ref idx)) => Ok(arr.get(*idx as usize)),
-            (_, FieldIndex::ArraySlice(_, _)) => Err(IndexAccessError {
+            (_, FieldIndex::EthAbiIndex(_)) => Err(IndexAccessError {
+                index: item.clone(),
+                actual: self.get_type(),
+            }),
+            (_, FieldIndex::Slice(_, _)) => Err(IndexAccessError {
                 index: item.clone(),
                 actual: self.get_type(),
             }),
@@ -537,7 +541,12 @@ impl<'a> LhsValue<'a> {
         match item {
             FieldIndex::ArrayIndex(idx) => match self {
                 LhsValue::Array(arr) => Ok(arr.extract(*idx as usize)),
-                // TODO isn't currently reachable
+                _ => Err(IndexAccessError {
+                    index: item.clone(),
+                    actual: self.get_type(),
+                }),
+            },
+            FieldIndex::EthAbiIndex(idx) => match self {
                 LhsValue::EthAbiToken(ref val) => match val.value() {
                     Token::Array(val) | Token::FixedArray(val) | Token::Tuple(val) => val
                         .get(*idx as usize)
@@ -556,7 +565,7 @@ impl<'a> LhsValue<'a> {
                     actual: self.get_type(),
                 }),
             },
-            FieldIndex::ArraySlice(start, end) => match self {
+            FieldIndex::Slice(start, end) => match self {
                 LhsValue::Array(arr) => {
                     let mut res = Array::new(arr.value_type().to_owned());
                     let mut idx = *start as usize;
@@ -690,10 +699,12 @@ impl<'a> LhsValue<'a> {
                     actual: self.get_type(),
                 })),
             },
-            FieldIndex::ArraySlice(..) => Err(SetValueError::IndexAccess(IndexAccessError {
-                index: item,
-                actual: self.get_type(),
-            })),
+            FieldIndex::EthAbiIndex(_) | FieldIndex::Slice(..) => {
+                Err(SetValueError::IndexAccess(IndexAccessError {
+                    index: item,
+                    actual: self.get_type(),
+                }))
+            }
             FieldIndex::MapKey(name) => match self {
                 LhsValue::Map(ref mut map) => map
                     .insert(name.as_bytes(), value)

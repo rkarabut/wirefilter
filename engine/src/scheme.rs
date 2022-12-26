@@ -1,7 +1,7 @@
 use crate::{
     ast::FilterAst,
     functions::FunctionDefinition,
-    lex::{complete, expect, span, take_while, Lex, LexErrorKind, LexResult, LexWith},
+    lex::{complete, expect, span, take_while, LexErrorKind, LexResult, LexWith},
     types::{GetType, RhsValue, Type},
 };
 use fnv::FnvBuildHasher;
@@ -48,12 +48,16 @@ pub enum FieldIndex {
     /// Map each element by applying a function or a comparison
     MapEach,
 
-    /// Array indices in the form of [start, end)
-    ArraySlice(u32, u32),
+    /// Slice indices in the form of [start, end)
+    Slice(u32, u32),
+
+    /// Index into an ethabi Array or Tuple
+    EthAbiIndex(u32),
 }
 
-impl<'i> Lex<'i> for FieldIndex {
-    fn lex(input: &'i str) -> LexResult<'i, Self> {
+impl<'i> FieldIndex {
+    /// Lex the field index with an optional type information supplied
+    pub fn lex_with_type(input: &'i str, typ: Option<Type>) -> LexResult<'i, Self> {
         if let Ok(input) = expect(input, "*") {
             return Ok((FieldIndex::MapEach, input));
         }
@@ -74,7 +78,7 @@ impl<'i> Lex<'i> for FieldIndex {
                         let (rhs, rest) = RhsValue::lex_with(input, Type::Int)?;
                         match rhs {
                             RhsValue::Int(i) => match u32::try_from(i) {
-                                Ok(u2) => Ok((FieldIndex::ArraySlice(u, u2), rest)),
+                                Ok(u2) => Ok((FieldIndex::Slice(u, u2), rest)),
                                 Err(_) => Err((
                                     LexErrorKind::ExpectedLiteral(
                                         "expected positive integer as end index",
@@ -85,7 +89,14 @@ impl<'i> Lex<'i> for FieldIndex {
                             _ => unreachable!(),
                         }
                     } else {
-                        Ok((FieldIndex::ArrayIndex(u), rest))
+                        match typ {
+                            Some(Type::EthAbiToken) => Ok((FieldIndex::EthAbiIndex(u), rest)),
+                            // use this as a shorthand for bytes/u256 single byte fetching
+                            // TODO currently messes with some tests
+                            // Some(Type::Bytes) | Some(Type::U256) => Ok((FieldIndex::Slice(u, u +
+                            // 1), rest)),
+                            _ => Ok((FieldIndex::ArrayIndex(u), rest)),
+                        }
                     }
                 }
                 Err(_) => Err((
@@ -1403,15 +1414,18 @@ fn test_field_type_override() {
 
 #[test]
 fn test_field_lex_indexes() {
-    assert_ok!(FieldIndex::lex("0"), FieldIndex::ArrayIndex(0));
+    assert_ok!(
+        FieldIndex::lex_with_type("0", None),
+        FieldIndex::ArrayIndex(0)
+    );
     assert_err!(
-        FieldIndex::lex("-1"),
+        FieldIndex::lex_with_type("-1", None),
         LexErrorKind::ExpectedLiteral("expected positive integer as index"),
         "-1"
     );
 
     assert_ok!(
-        FieldIndex::lex("\"cookies\""),
+        FieldIndex::lex_with_type("\"cookies\"", None),
         FieldIndex::MapKey("cookies".into())
     );
 }

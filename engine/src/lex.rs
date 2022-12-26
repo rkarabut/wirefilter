@@ -147,6 +147,10 @@ pub enum LexErrorKind {
     #[error("slice index can only come last")]
     SliceIndexIsNotLast,
 
+    /// The ethabi index operator is followed by a non-ethabi index
+    #[error("ethabi index can only be followed with ethabi or slice")]
+    InvalidIndexAfterEthAbi,
+
     /// Invalid type
     #[error("{0}")]
     TypeMismatch(#[source] TypeMismatchError),

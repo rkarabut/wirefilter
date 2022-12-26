@@ -7,9 +7,9 @@ use crate::{
     compiler::Compiler,
     execution_context::ExecutionContext,
     filter::{CompiledExpr, CompiledOneExpr, CompiledValueExpr, CompiledVecExpr},
-    lex::{complete, expect, skip_space, span, Lex, LexErrorKind, LexResult, LexWith},
+    lex::{complete, expect, skip_space, span, LexErrorKind, LexResult, LexWith},
     lhs_types::{Array, Map},
-    rhs_types::U256Wrapper,
+    rhs_types::{EthAbiToken, U256Wrapper},
     scheme::{FieldIndex, IndexAccessError, ParseError, Scheme},
     types::{GetType, IntoIter, LhsValue, Type, TypeMismatchError},
 };
@@ -30,26 +30,28 @@ pub struct IndexExpr<'s> {
 
 macro_rules! index_access_one {
     ($indexes:ident, $first:expr, $default:expr, $ctx:ident, $func:expr) => {
-        if $indexes
+        // using get until there is no other option but to extract
+        // (lexer should ensure extractable nodes are all at the end)
+        if let Some((first_extract_index, _)) = $indexes
             .iter()
-            .any(|idx| matches!(idx, FieldIndex::ArraySlice(..)))
+            .enumerate()
+            .find(|(_, idx)| matches!(idx, FieldIndex::EthAbiIndex(_) | FieldIndex::Slice(..)))
         {
             $indexes
                 .iter()
-                .take($indexes.len() - 1)
+                .take(first_extract_index)
                 .fold($first, |value, idx| {
-                    // a slice can currently only be the last possible index
-                    if matches!(idx, FieldIndex::ArraySlice(..)) {
-                        None
-                    } else {
-                        value.and_then(|val| val.get(idx).unwrap())
-                    }
+                    value.and_then(|val| val.get(idx).unwrap())
                 })
-                .and_then(|val| {
-                    // TODO is this wasteful? not sure how to implement slicing otherwise
-                    val.clone()
-                        .extract($indexes.iter().last().unwrap())
-                        .unwrap()
+                .cloned()
+                .map(|value| {
+                    $indexes
+                        .iter()
+                        .skip(first_extract_index)
+                        .fold(value, |val, idx| {
+                            // TODO is this too wasteful?
+                            val.clone().extract(idx).unwrap().unwrap()
+                        })
                 })
                 .map_or_else(|| $default, |val| $func(&val, $ctx))
         } else {
@@ -343,7 +345,7 @@ impl<'i, 's> LexWith<'i, &'s Scheme> for IndexExpr<'s> {
         while let Ok(rest) = expect(input, "[") {
             let rest = skip_space(rest);
 
-            let (idx, rest) = FieldIndex::lex(rest)?;
+            let (idx, rest) = FieldIndex::lex_with_type(rest, Some(current_type.clone()))?;
 
             let mut rest = skip_space(rest);
 
@@ -354,6 +356,17 @@ impl<'i, 's> LexWith<'i, &'s Scheme> for IndexExpr<'s> {
                     Type::Array(array_type) => {
                         current_type = *array_type;
                     }
+                    _ => {
+                        return Err((
+                            LexErrorKind::InvalidIndexAccess(IndexAccessError {
+                                index: idx,
+                                actual: current_type,
+                            }),
+                            span(input, rest),
+                        ))
+                    }
+                },
+                FieldIndex::EthAbiIndex(_) => match current_type {
                     Type::EthAbiToken => (),
                     _ => {
                         return Err((
@@ -365,7 +378,7 @@ impl<'i, 's> LexWith<'i, &'s Scheme> for IndexExpr<'s> {
                         ))
                     }
                 },
-                FieldIndex::ArraySlice(_, _) => match current_type {
+                FieldIndex::Slice(_, _) => match current_type {
                     // valid slices should not change current_type
                     Type::Array(_) | Type::U256 | Type::Bytes | Type::EthAbiToken => (),
                     _ => {
@@ -414,10 +427,23 @@ impl<'i, 's> LexWith<'i, &'s Scheme> for IndexExpr<'s> {
             input = rest;
 
             if !matches!(idx, FieldIndex::MapEach) {
-                if let Some(FieldIndex::ArraySlice(..)) = indexes.last() {
-                    return Err((LexErrorKind::SliceIndexIsNotLast, input));
+                match (indexes.last(), &idx) {
+                    // slice can only be last (discounting MapEach)
+                    (Some(FieldIndex::Slice(..)), _) => {
+                        return Err((LexErrorKind::SliceIndexIsNotLast, input));
+                    }
+                    // ethabi index can only be followed with another ethabi index or slice
+                    (
+                        Some(FieldIndex::EthAbiIndex(_)),
+                        FieldIndex::EthAbiIndex(_) | FieldIndex::Slice(..),
+                    ) => (),
+                    (Some(FieldIndex::EthAbiIndex(_)), _) => {
+                        return Err((LexErrorKind::InvalidIndexAfterEthAbi, input));
+                    }
+                    _ => (),
                 }
             }
+
             indexes.push(idx);
         }
 
@@ -434,10 +460,11 @@ impl<'s> GetType for IndexExpr<'s> {
                 (Type::Array(idx), FieldIndex::MapEach) => *idx,
                 (Type::Map(child), FieldIndex::MapKey(_)) => *child,
                 (Type::Map(child), FieldIndex::MapEach) => *child,
-                (Type::Array(_), FieldIndex::ArraySlice(..)) => ty,
-                (Type::U256, FieldIndex::ArraySlice(..)) => ty,
-                (Type::Bytes, FieldIndex::ArraySlice(..)) => ty,
-                (Type::EthAbiToken, FieldIndex::ArraySlice(..)) => ty,
+                (Type::Array(_), FieldIndex::Slice(..)) => ty,
+                (Type::U256, FieldIndex::Slice(..)) => ty,
+                (Type::Bytes, FieldIndex::Slice(..)) => ty,
+                (Type::EthAbiToken, FieldIndex::Slice(..)) => ty,
+                (Type::EthAbiToken, FieldIndex::EthAbiIndex(_)) => ty,
                 (_, _) => unreachable!(),
             }
         }
@@ -465,6 +492,7 @@ impl<'s> Serialize for IndexExpr<'s> {
 
 enum FieldIndexIterator<'a, 'b> {
     ArrayIndex(Option<(Array<'a>, u32)>),
+    EthAbiIndex(Option<(EthAbiToken, u32)>),
     ArraySlice(Option<(Array<'a>, u32, u32)>),
     U256Slice(Option<(U256Wrapper, u32, u32)>),
     MapKey(Option<(Map<'a>, &'b [u8])>),
@@ -482,11 +510,18 @@ impl<'a, 'b> FieldIndexIterator<'a, 'b> {
                     actual: val.get_type(),
                 }),
             },
-            FieldIndex::ArraySlice(start, end) => match val {
+            FieldIndex::EthAbiIndex(idx) => match val {
+                LhsValue::EthAbiToken(token) => Ok(Self::EthAbiIndex(Some((token, *idx)))),
+                _ => Err(IndexAccessError {
+                    index: FieldIndex::ArrayIndex(*idx),
+                    actual: val.get_type(),
+                }),
+            },
+            FieldIndex::Slice(start, end) => match val {
                 LhsValue::Array(arr) => Ok(Self::ArraySlice(Some((arr, *start, *end)))),
                 LhsValue::U256(val) => Ok(Self::U256Slice(Some((val, *start, *end)))),
                 _ => Err(IndexAccessError {
-                    index: FieldIndex::ArraySlice(*start, *end),
+                    index: FieldIndex::Slice(*start, *end),
                     actual: val.get_type(),
                 }),
             },
@@ -514,6 +549,9 @@ impl<'a, 'b> Iterator for FieldIndexIterator<'a, 'b> {
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Self::ArrayIndex(opt) => opt.take().and_then(|(arr, idx)| arr.extract(idx as usize)),
+            Self::EthAbiIndex(opt) => opt
+                .take()
+                .and_then(|(token, idx)| token.extract(idx as usize)),
             Self::ArraySlice(opt) => opt.take().and_then(|(arr, start, end)| {
                 let mut res = Array::new(arr.value_type().to_owned());
                 let mut idx = start as usize;
