@@ -23,7 +23,7 @@ bigint = "4.4.3"
 cfg-if = "0.1.6"
 cidr = "0.1.0"
 derivative = "2.1"
-ethabi = "18.0"
+ethers-core = "1.0.2"
 fnv = "1.0.6"
 hex = "0.4.3"
 indexmap = { version = "1.4.0", features = ["serde-1"] }

@@ -9,7 +9,7 @@ use crate::{
     strict_partial_ord::StrictPartialOrd,
 };
 use bigint::uint::U256;
-use ethabi::Token;
+use ethers_core::abi::Token;
 use serde::{
     de::{DeserializeSeed, Deserializer},
     Deserialize, Serialize, Serializer,

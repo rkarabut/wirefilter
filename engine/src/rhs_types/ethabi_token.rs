@@ -1,9 +1,12 @@
 use std::hash::{Hash, Hasher};
 
-use ethabi::{
-    ethereum_types::U256,
-    token::{LenientTokenizer, Tokenizer},
-    Token,
+use ethers_core::{
+    abi::{
+        ethereum_types::U256,
+        token::{LenientTokenizer, Tokenizer},
+        Token,
+    },
+    types::I256,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -44,12 +47,12 @@ impl EthAbiToken {
             .split_once(' ')
             .ok_or(EthAbiTokenError::NoSeparatorFound)?;
 
-        let param_type = ethabi::param_type::Reader::read(ethabi_type)
+        let param_type = ethers_core::abi::param_type::Reader::read(ethabi_type)
             .map_err(|e| EthAbiTokenError::ParseType(e.to_string()))?;
 
         // special case for catching unknown types for single values, as ethabi would
         // parse any unknown type as an enum
-        if param_type == ethabi::ParamType::Uint(8) && !ethabi_type.starts_with("uint8") {
+        if param_type == ethers_core::abi::ParamType::Uint(8) && !ethabi_type.starts_with("uint8") {
             return Err(EthAbiTokenError::UnknownType);
         }
 
@@ -89,12 +92,21 @@ impl StrictPartialOrd for EthAbiToken {}
 
 impl std::cmp::PartialOrd for EthAbiToken {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        use ethabi::Token::*;
+        use ethers_core::abi::Token::*;
 
         match (self.value(), other.value()) {
             (Uint(a), Uint(b)) => a.partial_cmp(b),
-            // signed 256-bit ints aren't implemented correctly
-            (Int(_), Int(_)) => None,
+            (Int(a), Int(b)) => I256::from_raw(*a).partial_cmp(&I256::from_raw(*b)),
+            (Int(a), Uint(b)) => {
+                let a = I256::from_raw(*a);
+                if a.is_negative() {
+                    Some(std::cmp::Ordering::Less)
+                } else {
+                    let (_, a) = a.into_sign_and_abs();
+                    a.partial_cmp(b)
+                }
+            }
+            (Uint(_), Int(_)) => other.partial_cmp(self),
             (String(a), String(b)) => a.partial_cmp(b),
             (Bytes(a), Bytes(b)) => a.partial_cmp(b),
             (FixedBytes(a), FixedBytes(b)) => a.partial_cmp(b),
@@ -150,6 +162,8 @@ pub enum EthAbiTokenError {
     UnknownType,
     #[error("error parsing u256 integer: {0}")]
     ParseU256(String),
+    #[error("error parsing i256 integer: {0}")]
+    ParseI256(String),
 }
 
 fn lex_digits(input: &str) -> LexResult<'_, &str> {
@@ -208,17 +222,48 @@ impl<'i> Lex<'i> for EthAbiToken {
             };
             Ok((EthAbiToken::new(Token::Uint(value)), rest))
         } else {
-            let (data, rest) = lex_digits(input)?;
-            let value = match U256::from_str_radix(data, 10) {
-                Err(e) => {
-                    return Err((
-                        LexErrorKind::ParseEthAbiToken(EthAbiTokenError::ParseU256(e.to_string())),
-                        rest,
-                    ));
+            match expect(input, "-") {
+                Ok(input) => {
+                    let (data, rest) = lex_digits(input)?;
+                    let value = match I256::from_dec_str(data) {
+                        Err(e) => {
+                            return Err((
+                                LexErrorKind::ParseEthAbiToken(EthAbiTokenError::ParseI256(
+                                    e.to_string(),
+                                )),
+                                rest,
+                            ));
+                        }
+                        Ok(value) => match value.checked_neg() {
+                            Some(value) => value,
+                            None => {
+                                return Err((
+                                    LexErrorKind::ParseEthAbiToken(EthAbiTokenError::ParseI256(
+                                        "negative value out of bounds".into(),
+                                    )),
+                                    rest,
+                                ));
+                            }
+                        },
+                    };
+                    Ok((EthAbiToken::new(Token::Int(value.into_raw())), rest))
                 }
-                Ok(value) => value,
-            };
-            Ok((EthAbiToken::new(Token::Uint(value)), rest))
+                Err(_) => {
+                    let (data, rest) = lex_digits(input)?;
+                    let value = match U256::from_str_radix(data, 10) {
+                        Err(e) => {
+                            return Err((
+                                LexErrorKind::ParseEthAbiToken(EthAbiTokenError::ParseU256(
+                                    e.to_string(),
+                                )),
+                                rest,
+                            ));
+                        }
+                        Ok(value) => value,
+                    };
+                    Ok((EthAbiToken::new(Token::Uint(value)), rest))
+                }
+            }
         }
     }
 }
@@ -332,5 +377,10 @@ fn test_ethabi_token() {
         ),
         LexErrorKind::ParseEthAbiToken(EthAbiTokenError::Tokenize("Invalid data".into())),
         ""
+    );
+    assert_ok!(
+        EthAbiToken::lex("-150x"),
+        Token::Int(I256::from_dec_str("-150").unwrap().into_raw()).into(),
+        "x"
     );
 }
